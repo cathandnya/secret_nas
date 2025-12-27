@@ -118,7 +118,7 @@ sudo ./setup.sh
 ssh pi@pi.local
 
 # リポジトリをクローン
-git clone https://github.com/yourusername/secret_nas.git
+git clone https://github.com/cathandnya/secret_nas.git
 cd secret_nas
 
 # セットアップスクリプトを実行
@@ -862,8 +862,8 @@ MIT License
 
 ## 貢献
 
-バグ報告や機能リクエストは [Issues](https://github.com/yourusername/secret_nas/issues) へお願いします。
+バグ報告や機能リクエストは [Issues](https://github.com/cathandnya/secret_nas/issues) へお願いします。
 
 ## サポート
 
-質問やサポートが必要な場合は、[Discussions](https://github.com/yourusername/secret_nas/discussions) をご利用ください。
+質問やサポートが必要な場合は、[Discussions](https://github.com/cathandnya/secret_nas/discussions) をご利用ください。

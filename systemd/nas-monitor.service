@@ -1,6 +1,6 @@
 [Unit]
 Description=Secret NAS Access Monitor and Auto-Wipe Service
-Documentation=https://github.com/yourusername/secret_nas
+Documentation=https://github.com/cathandnya/secret_nas
 After=network.target network-online.target smbd.service
 Wants=network-online.target
 Requires=smbd.service
