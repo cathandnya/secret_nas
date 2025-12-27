@@ -1,0 +1,25 @@
+services:
+  secret-nas:
+    build: .
+    container_name: secret-nas-test
+    privileged: true
+    # systemd用に必要
+    tmpfs:
+      - /tmp
+      - /run
+      - /run/lock
+    ports:
+      # Samba用ポート
+      - "445:445"
+      - "139:139"
+      # SSH用（オプション）
+      - "2222:22"
+    networks:
+      - nas-network
+    hostname: raspberrypi
+    # systemdを起動するため
+    stop_grace_period: 30s
+
+networks:
+  nas-network:
+    driver: bridge

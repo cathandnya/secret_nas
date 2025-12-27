@@ -1,0 +1,38 @@
+[Unit]
+Description=Secret NAS Access Monitor and Auto-Wipe Service
+Documentation=https://github.com/yourusername/secret_nas
+After=network.target network-online.target smbd.service
+Wants=network-online.target
+Requires=smbd.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/nas-monitor
+
+# Main process
+ExecStart=/usr/bin/python3 /opt/nas-monitor/src/monitor.py --config /etc/nas-monitor/config.json --log-level INFO
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Resource limits (optimized for Pi Zero WH)
+MemoryLimit=50M
+CPUQuota=20%
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/nas-monitor /var/log /mnt/secure_nas /root
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=nas-monitor
+
+[Install]
+WantedBy=multi-user.target

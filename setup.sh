@@ -1,0 +1,433 @@
+#!/bin/bash
+#
+# Secret NAS Setup Script
+#
+# Raspberry Pi Zero WH向けのセキュアなNASシステムをセットアップする。
+# USB外付けストレージをLUKS暗号化し、30日間アクセスがなければ
+# 自動的にデータを消去する。
+#
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_DIR="/opt/nas-monitor"
+MOUNT_POINT="/mnt/secure_nas"
+LUKS_NAME="secure_nas_crypt"
+KEYFILE="/root/.nas-keyfile"
+USB_DEVICE=""
+
+# カラー出力
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
+
+# ルート権限チェック
+if [[ $EUID -ne 0 ]]; then
+   log_error "This script must be run as root"
+   exit 1
+fi
+
+# Raspberry Piチェック（オプション）
+check_hardware() {
+    log_step "Checking hardware..."
+
+    if [ -f /proc/device-tree/model ]; then
+        model=$(cat /proc/device-tree/model 2>/dev/null || echo "Unknown")
+        log_info "Detected: $model"
+
+        if [[ ! "$model" =~ "Raspberry Pi" ]]; then
+            log_warn "This script is optimized for Raspberry Pi Zero WH"
+            read -p "Continue anyway? (y/N): " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                exit 1
+            fi
+        fi
+    fi
+}
+
+# USBデバイス選択
+select_usb_device() {
+    log_step "Detecting USB storage devices..."
+
+    # ルートデバイスを特定
+    root_device=$(findmnt -n -o SOURCE / | sed 's/p\?[0-9]*$//')
+    log_info "Root device: $root_device (will be excluded)"
+
+    # USB/外部ストレージデバイスをリスト
+    echo ""
+    echo "Available storage devices:"
+    lsblk -dno NAME,SIZE,TYPE,VENDOR,MODEL | grep -E "disk" | nl
+    echo ""
+
+    while true; do
+        read -p "Enter device name (e.g., sda) or full path (e.g., /dev/sda): " device_input
+
+        # デバイスパスを正規化
+        if [[ "$device_input" =~ ^/dev/ ]]; then
+            USB_DEVICE="$device_input"
+        else
+            USB_DEVICE="/dev/$device_input"
+        fi
+
+        # デバイスが存在するかチェック
+        if [ ! -b "$USB_DEVICE" ]; then
+            log_error "Device $USB_DEVICE does not exist"
+            continue
+        fi
+
+        # ルートデバイスでないかチェック
+        if [[ "$USB_DEVICE" == "$root_device"* ]]; then
+            log_error "Cannot use system disk $USB_DEVICE"
+            continue
+        fi
+
+        break
+    done
+
+    log_warn "Selected device: $USB_DEVICE"
+    log_warn "ALL DATA ON THIS DEVICE WILL BE ERASED!"
+
+    # 二重確認
+    read -p "Type 'YES' to confirm: " confirm
+    if [ "$confirm" != "YES" ]; then
+        log_error "Aborted by user"
+        exit 1
+    fi
+}
+
+# 依存関係インストール
+install_dependencies() {
+    log_step "Installing dependencies..."
+
+    apt-get update
+    apt-get install -y \
+        samba \
+        rsyslog \
+        python3 \
+        python3-pip \
+        cryptsetup \
+        parted \
+        util-linux \
+        coreutils
+
+    log_info "Dependencies installed successfully"
+}
+
+# LUKS暗号化設定
+setup_encryption() {
+    log_step "Setting up LUKS encryption..."
+
+    # キーファイル生成
+    log_info "Generating random keyfile..."
+    dd if=/dev/urandom of="$KEYFILE" bs=4096 count=1
+    chmod 600 "$KEYFILE"
+    log_info "Keyfile created: $KEYFILE"
+
+    # LUKS暗号化フォーマット
+    log_warn "Formatting $USB_DEVICE with LUKS encryption..."
+    log_warn "This will ERASE all data on the device!"
+
+    cryptsetup luksFormat \
+        --type luks2 \
+        --cipher aes-xts-plain64 \
+        --key-size 256 \
+        --hash sha256 \
+        --iter-time 2000 \
+        "$USB_DEVICE" \
+        "$KEYFILE"
+
+    log_info "LUKS encryption initialized"
+
+    # LUKS デバイスを開く
+    log_info "Opening LUKS device..."
+    cryptsetup open --key-file="$KEYFILE" "$USB_DEVICE" "$LUKS_NAME"
+
+    # ext4ファイルシステム作成
+    log_info "Creating ext4 filesystem..."
+    mkfs.ext4 -F "/dev/mapper/$LUKS_NAME"
+
+    log_info "Encryption setup complete"
+}
+
+# ストレージマウント設定
+setup_storage() {
+    log_step "Configuring storage mount..."
+
+    # マウントポイント作成
+    mkdir -p "$MOUNT_POINT"
+
+    # UUIDを取得
+    LUKS_UUID=$(cryptsetup luksUUID "$USB_DEVICE")
+    FS_UUID=$(blkid -s UUID -o value "/dev/mapper/$LUKS_NAME")
+
+    log_info "LUKS UUID: $LUKS_UUID"
+    log_info "Filesystem UUID: $FS_UUID"
+
+    # /etc/crypttab設定（起動時自動復号）
+    if ! grep -q "$LUKS_NAME" /etc/crypttab 2>/dev/null; then
+        echo "$LUKS_NAME UUID=$LUKS_UUID $KEYFILE luks,nofail" >> /etc/crypttab
+        log_info "Added entry to /etc/crypttab"
+    fi
+
+    # /etc/fstab設定
+    if ! grep -q "$MOUNT_POINT" /etc/fstab 2>/dev/null; then
+        echo "UUID=$FS_UUID $MOUNT_POINT ext4 defaults,nofail 0 2" >> /etc/fstab
+        log_info "Added entry to /etc/fstab"
+    fi
+
+    # マウント
+    mount "$MOUNT_POINT"
+
+    # 権限設定
+    chmod 770 "$MOUNT_POINT"
+    chown root:nasusers "$MOUNT_POINT"
+
+    log_info "Storage mounted at $MOUNT_POINT"
+}
+
+# Samba設定
+setup_samba() {
+    log_step "Configuring Samba..."
+
+    # nasusersグループ作成
+    groupadd -f nasusers
+
+    # ユーザー作成
+    echo ""
+    read -p "Enter NAS username: " nas_user
+
+    if id "$nas_user" &>/dev/null; then
+        log_info "User $nas_user already exists"
+        usermod -a -G nasusers "$nas_user"
+    else
+        useradd -m -G nasusers "$nas_user"
+        log_info "User $nas_user created"
+    fi
+
+    # Sambaパスワード設定
+    echo "Set Samba password for $nas_user:"
+    smbpasswd -a "$nas_user"
+
+    # Samba設定ファイルをバックアップ
+    if [ -f /etc/samba/smb.conf ]; then
+        cp /etc/samba/smb.conf /etc/samba/smb.conf.backup.$(date +%Y%m%d)
+    fi
+
+    # Samba設定をコピー
+    cp "$SCRIPT_DIR/config/smb.conf.template" /etc/samba/smb.conf
+
+    # rsyslog設定（Samba監査ログ）
+    cat > /etc/rsyslog.d/10-samba.conf <<EOF
+# Samba audit logs
+local5.* /var/log/samba/audit.log
+EOF
+
+    # ログディレクトリ作成
+    mkdir -p /var/log/samba
+
+    # サービス再起動
+    systemctl restart rsyslog
+    systemctl restart smbd
+    systemctl enable smbd
+
+    log_info "Samba configured successfully"
+}
+
+# 削除日数設定
+setup_inactivity_period() {
+    log_step "Configuring inactivity period..."
+
+    echo ""
+    log_info "データ自動削除までの非アクティブ期間を設定します"
+    echo ""
+    read -p "削除までの日数 (default: 30): " inactivity_days
+    inactivity_days=${inactivity_days:-30}
+
+    # 数値チェック
+    if ! [[ "$inactivity_days" =~ ^[0-9]+$ ]]; then
+        log_warn "無効な値です。デフォルト値30日を使用します"
+        inactivity_days=30
+    fi
+
+    # 警告日の計算（7日前、3日前、1日前）
+    warning_day_1=$((inactivity_days - 7))
+    warning_day_2=$((inactivity_days - 3))
+    warning_day_3=$((inactivity_days - 1))
+
+    # 警告日が有効かチェック
+    if [ $warning_day_1 -lt 1 ]; then
+        warning_day_1=1
+    fi
+    if [ $warning_day_2 -lt 1 ] || [ $warning_day_2 -le $warning_day_1 ]; then
+        warning_day_2=$((warning_day_1 + 1))
+    fi
+    if [ $warning_day_3 -lt 1 ] || [ $warning_day_3 -le $warning_day_2 ]; then
+        warning_day_3=$((inactivity_days - 1))
+    fi
+
+    WARNING_DAYS="[$warning_day_1, $warning_day_2, $warning_day_3]"
+
+    log_info "削除までの期間: $inactivity_days 日"
+    log_info "警告日: ${warning_day_1}日目、${warning_day_2}日目、${warning_day_3}日目"
+    echo ""
+}
+
+# メール通知設定
+setup_notification() {
+    log_step "Configuring email notifications..."
+
+    echo ""
+    read -p "Enable email notifications? (y/N): " -n 1 -r
+    echo
+
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        log_info "Email notifications disabled"
+        return 0
+    fi
+
+    # メール設定入力
+    echo ""
+    read -p "Recipient email address: " email_to
+    read -p "Sender email address: " email_from
+    read -p "SMTP server (default: smtp.gmail.com): " smtp_server
+    smtp_server=${smtp_server:-smtp.gmail.com}
+    read -p "SMTP port (default: 587): " smtp_port
+    smtp_port=${smtp_port:-587}
+    read -p "SMTP username: " smtp_user
+    read -s -p "SMTP password (app-specific password for Gmail): " smtp_pass
+    echo ""
+
+    # 設定ファイルに保存（後で上書き）
+    NOTIFICATION_CONFIG=$(cat <<EOF
+  "notification": {
+    "enabled": true,
+    "method": "email",
+    "email": {
+      "to": "$email_to",
+      "from": "$email_from",
+      "smtp_server": "$smtp_server",
+      "smtp_port": $smtp_port,
+      "username": "$smtp_user",
+      "password": "$smtp_pass",
+      "use_tls": true
+    }
+  }
+EOF
+)
+
+    # テスト送信
+    log_info "Testing email configuration..."
+    python3 "$SCRIPT_DIR/src/notifier.py" \
+        --to "$email_to" \
+        --from "$email_from" \
+        --smtp-server "$smtp_server" \
+        --smtp-port "$smtp_port" \
+        --username "$smtp_user" \
+        --password "$smtp_pass" \
+        --test-only
+
+    if [ $? -eq 0 ]; then
+        log_info "Email configuration test successful"
+    else
+        log_warn "Email configuration test failed"
+        read -p "Continue anyway? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            NOTIFICATION_CONFIG='  "notification": { "enabled": false }'
+        fi
+    fi
+}
+
+# 監視サービスセットアップ
+setup_monitor() {
+    log_step "Installing monitoring service..."
+
+    # インストールディレクトリ作成
+    mkdir -p "$INSTALL_DIR"
+
+    # ソースファイルをコピー
+    cp -r "$SCRIPT_DIR/src" "$INSTALL_DIR/"
+
+    # 状態ディレクトリ作成
+    mkdir -p /var/lib/nas-monitor
+
+    # 設定ディレクトリ作成
+    mkdir -p /etc/nas-monitor
+
+    # 設定ファイル作成
+    cat > /etc/nas-monitor/config.json <<EOF
+{
+  "mount_point": "$MOUNT_POINT",
+  "device": "$USB_DEVICE",
+  "keyfile": "$KEYFILE",
+  "inactivity_days": ${inactivity_days:-30},
+  "warning_days": ${WARNING_DAYS:-[23, 27, 29]},
+  "state_file": "/var/lib/nas-monitor/last_access.json",
+  "notification_state_file": "/var/lib/nas-monitor/notification_state.json",
+  "shutdown_after_wipe": false,
+${NOTIFICATION_CONFIG:-  "notification": { "enabled": false }}
+}
+EOF
+
+    log_info "Configuration saved to /etc/nas-monitor/config.json"
+
+    # systemdサービスをインストール
+    cp "$SCRIPT_DIR/systemd/nas-monitor.service" /etc/systemd/system/
+
+    # systemd リロード
+    systemctl daemon-reload
+
+    # サービス有効化・起動
+    systemctl enable nas-monitor
+    systemctl start nas-monitor
+
+    log_info "Monitoring service installed and started"
+}
+
+# メイン実行
+main() {
+    echo ""
+    echo "=========================================="
+    echo "  Secret NAS Setup"
+    echo "  Raspberry Pi Zero WH"
+    echo "=========================================="
+    echo ""
+
+    check_hardware
+    select_usb_device
+    install_dependencies
+    setup_encryption
+    setup_storage
+    setup_samba
+    setup_inactivity_period
+    setup_notification
+    setup_monitor
+
+    echo ""
+    echo "=========================================="
+    echo "  Setup Complete!"
+    echo "=========================================="
+    echo ""
+    log_info "NAS is accessible at:"
+    log_info "  \\\\$(hostname)\\secure_share"
+    log_info "  smb://$(hostname).local/secure_share"
+    echo ""
+    log_info "Monitor service status:"
+    log_info "  systemctl status nas-monitor"
+    echo ""
+    log_warn "IMPORTANT: After ${inactivity_days:-30} days of inactivity, all data will be securely wiped!"
+    if [ ! -z "$WARNING_DAYS" ]; then
+        log_warn "Warning emails will be sent on days: ${warning_day_1}, ${warning_day_2}, ${warning_day_3}"
+    fi
+    echo ""
+}
+
+main "$@"

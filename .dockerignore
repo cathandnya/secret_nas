@@ -1,0 +1,35 @@
+# Docker build時に除外するファイル
+
+# テストファイル
+test-storage/
+test-local/
+*.log
+firebase-debug.log
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# OS
+.DS_Store
+Thumbs.db

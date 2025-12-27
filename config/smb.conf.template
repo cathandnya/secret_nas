@@ -1,0 +1,71 @@
+# Samba Configuration for Secret NAS
+# Optimized for Raspberry Pi Zero WH
+
+[global]
+    # Server Information
+    workgroup = WORKGROUP
+    server string = Secret NAS (Raspberry Pi)
+    netbios name = SECRET-NAS
+
+    # Security Settings
+    security = user
+    map to guest = never
+    encrypt passwords = yes
+    min protocol = SMB2
+    max protocol = SMB3
+
+    # Performance Optimization for Pi Zero WH (512MB RAM, 1GHz CPU)
+    socket options = TCP_NODELAY IPTOS_LOWDELAY SO_RCVBUF=65536 SO_SNDBUF=65536
+    read raw = yes
+    write raw = yes
+    max xmit = 65535
+    dead time = 15
+    getwd cache = yes
+
+    # Memory Optimization
+    max connections = 10
+    max open files = 100
+
+    # Logging (Minimal for resource saving)
+    log level = 1
+    max log size = 100
+    log file = /var/log/samba/log.%m
+
+    # Disable unnecessary services
+    disable spoolss = yes
+    load printers = no
+    printing = bsd
+    printcap name = /dev/null
+
+    # DNS and Name Resolution
+    dns proxy = no
+    wins support = no
+
+# Secure Share with Access Auditing
+[secure_share]
+    comment = Secure NAS Storage (Auto-wipe after 30 days)
+    path = /mnt/secure_nas
+
+    # Access Control
+    valid users = @nasusers
+    read only = no
+    browseable = yes
+    guest ok = no
+
+    # File Permissions
+    create mask = 0660
+    directory mask = 0770
+    force user = root
+    force group = nasusers
+
+    # Access Auditing (CRITICAL - Required for activity tracking)
+    vfs objects = full_audit
+    full_audit:prefix = %u|%I|%S
+    full_audit:success = connect disconnect opendir mkdir rmdir open close read pread write pwrite rename unlink
+    full_audit:failure = none
+    full_audit:facility = local5
+    full_audit:priority = notice
+
+    # Performance
+    strict allocate = yes
+    allocation roundup size = 1048576
