@@ -859,11 +859,3 @@ MIT License
 ## 免責事項
 
 このソフトウェアは、データを自動的に完全削除します。一度削除されたデータは復元できません。使用は自己責任で行ってください。作者は、データ損失やその他の損害について一切の責任を負いません。
-
-## 貢献
-
-バグ報告や機能リクエストは [Issues](https://github.com/cathandnya/secret_nas/issues) へお願いします。
-
-## サポート
-
-質問やサポートが必要な場合は、[Discussions](https://github.com/cathandnya/secret_nas/discussions) をご利用ください。
