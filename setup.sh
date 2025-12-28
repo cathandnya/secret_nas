@@ -101,6 +101,35 @@ select_usb_device() {
         log_error "Aborted by user"
         exit 1
     fi
+
+    # マウント状態を確認し、必要ならアンマウント
+    log_info "Checking if device is mounted..."
+
+    # デバイスの全パーティションをチェック
+    for mounted_dev in $(lsblk -ln -o NAME,MOUNTPOINT "$USB_DEVICE" 2>/dev/null | awk '$2 != "" {print $1}'); do
+        mount_point=$(lsblk -ln -o MOUNTPOINT "/dev/$mounted_dev" 2>/dev/null)
+        if [ -n "$mount_point" ]; then
+            log_warn "Unmounting /dev/$mounted_dev from $mount_point"
+            umount "/dev/$mounted_dev" 2>/dev/null || umount -l "/dev/$mounted_dev"
+        fi
+    done
+
+    # LUKS暗号化デバイスがマウントされているかチェック
+    if [ -e "/dev/mapper/$LUKS_NAME" ]; then
+        log_warn "LUKS device $LUKS_NAME is already open"
+
+        # マウントされているか確認
+        if mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
+            log_warn "Unmounting $MOUNT_POINT"
+            umount "$MOUNT_POINT" 2>/dev/null || umount -l "$MOUNT_POINT"
+        fi
+
+        # LUKS デバイスをクローズ
+        log_warn "Closing LUKS device $LUKS_NAME"
+        cryptsetup close "$LUKS_NAME"
+    fi
+
+    log_info "Device is ready for encryption"
 }
 
 # 依存関係インストール
