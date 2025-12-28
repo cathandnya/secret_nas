@@ -191,6 +191,17 @@ class NASMonitor:
             self.logger.critical("Secure wipe completed successfully")
             self.logger.critical("Data is now PERMANENTLY UNRECOVERABLE")
 
+            # 削除完了通知を送信
+            if self.notifier:
+                try:
+                    days_elapsed = self.tracker.days_since_last_access()
+                    self.notifier.send_wipe_complete_notification(
+                        days_elapsed=days_elapsed,
+                        last_access=last_access
+                    )
+                except Exception as e:
+                    self.logger.error(f"Failed to send wipe complete notification: {e}")
+
             # 監視サービスを無効化（再起動を防ぐ）
             self._disable_monitor_service()
 

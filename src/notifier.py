@@ -219,6 +219,65 @@ Secret NAS - Raspberry Pi Zero WH
 
         return success
 
+    def send_wipe_complete_notification(self, days_elapsed: int, last_access: datetime) -> bool:
+        """
+        削除完了通知メールを送信
+
+        Args:
+            days_elapsed: 最終アクセスからの経過日数
+            last_access: 最終アクセス日時
+
+        Returns:
+            送信成功した場合True
+        """
+        hostname = self._get_hostname()
+
+        subject = "[完了] Secret NAS データが削除されました"
+
+        body = f"""こんにちは、
+
+Secret NASシステムから自動通知です。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  データ削除が完了しました
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+非アクティブ期間が削除閾値に達したため、すべてのデータが
+安全に削除されました。
+
+【削除情報】
+  ホスト名: {hostname}
+  最終アクセス: {last_access.strftime('%Y年%m月%d日 %H:%M:%S')}
+  経過日数: {days_elapsed}日
+  削除実行日時: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}
+
+【削除方法】
+  LUKS暗号化キーファイルを完全削除しました。
+  暗号化されたデータは残っていますが、キーがないため
+  永久に復号できません。データ復旧は不可能です。
+
+【次のステップ】
+  NASを再度使用したい場合は、以下の手順でセットアップしてください：
+  1. Raspberry Piにログイン
+  2. setup.shスクリプトを再実行
+  3. 新しい暗号化キーで初期化
+
+このメールはSecret NASシステムから自動送信されています。
+返信しないでください。
+
+Secret NAS - Raspberry Pi Zero WH
+"""
+
+        # メール送信
+        success = self._send_email(subject, body)
+
+        if success:
+            self.logger.info("Wipe complete notification sent successfully")
+        else:
+            self.logger.error("Failed to send wipe complete notification")
+
+        return success
+
     def _send_email(self, subject: str, body: str) -> bool:
         """
         実際にメールを送信
