@@ -114,6 +114,8 @@ except smtplib.SMTPException as e:
     sys.exit(1)
 except Exception as e:
     print(f"\033[0;31m✗ Error: Failed to send test email\033[0m", file=sys.stderr)
-    print(f"  {e}", file=sys.stderr)
+    print(f"  {type(e).__name__}: {e}", file=sys.stderr)
+    import traceback
+    traceback.print_exc()
     sys.exit(1)
 EOF
