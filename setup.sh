@@ -447,7 +447,7 @@ setup_notification() {
 
     # 設定ファイルに保存（後で上書き）
     NOTIFICATION_CONFIG=$(cat <<EOF
-  "notification": {
+"notification": {
     "enabled": true,
     "method": "email",
     "email": {
@@ -513,7 +513,7 @@ setup_monitor() {
   "state_file": "/var/lib/nas-monitor/last_access.json",
   "notification_state_file": "/var/lib/nas-monitor/notification_state.json",
   "shutdown_after_wipe": false,
-${NOTIFICATION_CONFIG:-  "notification": { "enabled": false }}
+  ${NOTIFICATION_CONFIG:-"notification": { "enabled": false }}
 }
 EOF
 
