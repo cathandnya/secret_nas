@@ -153,8 +153,9 @@ select_usb_device() {
     log_warn "ALL DATA ON THIS DEVICE WILL BE ERASED!"
 
     # 二重確認
-    read -p "Type 'YES' to confirm: " confirm
-    if [ "$confirm" != "YES" ]; then
+    read -p "Continue? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         log_error "Aborted by user"
         exit 1
     fi
