@@ -7,6 +7,7 @@ Sambaログを監視し、30日間アクセスがない場合にセキュア消�
 """
 
 import signal
+import subprocess
 import sys
 import time
 import logging
@@ -190,9 +191,27 @@ class NASMonitor:
             self.logger.critical("Secure wipe completed successfully")
             self.logger.critical("Data is now PERMANENTLY UNRECOVERABLE")
 
+            # 監視サービスを無効化（再起動を防ぐ）
+            self._disable_monitor_service()
+
         except Exception as e:
             self.logger.critical(f"Wipe operation failed: {e}", exc_info=True)
             raise
+
+    def _disable_monitor_service(self):
+        """削除後に監視サービスを無効化"""
+        try:
+            self.logger.info("Disabling nas-monitor service to prevent restart...")
+            subprocess.run(
+                ['systemctl', 'disable', 'nas-monitor.service'],
+                check=True,
+                capture_output=True
+            )
+            self.logger.info("Service disabled successfully")
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"Failed to disable service: {e}")
+        except Exception as e:
+            self.logger.warning(f"Error disabling service: {e}")
 
     def run(self):
         """メインループ"""
