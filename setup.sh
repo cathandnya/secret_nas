@@ -267,6 +267,10 @@ setup_encryption() {
 setup_storage() {
     log_step "Configuring storage mount..."
 
+    # nasusersグループを先に作成（権限設定に必要）
+    groupadd -f nasusers
+    log_info "Created nasusers group"
+
     # マウントポイント作成
     mkdir -p "$MOUNT_POINT"
 
@@ -292,19 +296,18 @@ setup_storage() {
     # マウント
     mount "$MOUNT_POINT"
 
-    # 権限設定
-    chmod 770 "$MOUNT_POINT"
+    # 権限設定（nasusersグループが存在することを確認済み）
     chown root:nasusers "$MOUNT_POINT"
+    chmod 770 "$MOUNT_POINT"
 
-    log_info "Storage mounted at $MOUNT_POINT"
+    log_info "Storage mounted at $MOUNT_POINT with correct permissions"
 }
 
 # Samba設定
 setup_samba() {
     log_step "Configuring Samba..."
 
-    # nasusersグループ作成
-    groupadd -f nasusers
+    # nasusersグループは setup_storage() で既に作成済み
 
     # ユーザー作成
     echo ""
