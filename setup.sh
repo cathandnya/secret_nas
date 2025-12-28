@@ -164,16 +164,19 @@ select_usb_device() {
     log_info "Checking if device is mounted..."
 
     # デバイスの全パーティションをチェック
-    local mounted_partitions=$(lsblk -ln -o NAME,MOUNTPOINT "$USB_DEVICE" 2>/dev/null | awk '$2 != "" {print $1}')
+    local has_mounted=false
+    while IFS= read -r line; do
+        local dev_name=$(echo "$line" | awk '{print $1}')
+        local mount_point=$(echo "$line" | awk '{print $2}')
 
-    if [ -n "$mounted_partitions" ]; then
-        for mounted_dev in $mounted_partitions; do
-            mount_point=$(lsblk -ln -o MOUNTPOINT "/dev/$mounted_dev" 2>/dev/null)
-            if [ -n "$mount_point" ]; then
-                log_warn "Unmounting /dev/$mounted_dev from $mount_point"
-                umount "/dev/$mounted_dev" 2>/dev/null || umount -l "/dev/$mounted_dev"
-            fi
-        done
+        if [ -n "$mount_point" ]; then
+            has_mounted=true
+            log_warn "Unmounting /dev/$dev_name from $mount_point"
+            umount "/dev/$dev_name" 2>/dev/null || umount -l "/dev/$dev_name"
+        fi
+    done < <(lsblk -ln -o NAME,MOUNTPOINT "$USB_DEVICE" 2>/dev/null)
+
+    if [ "$has_mounted" = true ]; then
         log_info "Unmounted all partitions"
     else
         log_info "No mounted partitions found"
