@@ -34,6 +34,63 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
+# 既存環境の初期化
+cleanup_existing_setup() {
+    log_step "Checking existing setup..."
+
+    local services_running=false
+
+    # nas-monitorサービスをチェック
+    if systemctl is-active --quiet nas-monitor 2>/dev/null; then
+        log_warn "nas-monitor service is currently running"
+        services_running=true
+    fi
+
+    # Sambaサービスをチェック
+    if systemctl is-active --quiet smbd 2>/dev/null; then
+        log_warn "Samba service is currently running"
+        services_running=true
+    fi
+
+    if [ "$services_running" = true ]; then
+        echo ""
+        log_warn "Existing Secret NAS services are running."
+        log_warn "These services will be stopped and reconfigured."
+        read -p "Continue? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            log_error "Setup aborted by user"
+            exit 1
+        fi
+
+        # nas-monitorサービスを停止・無効化
+        if systemctl is-active --quiet nas-monitor 2>/dev/null; then
+            log_info "Stopping nas-monitor service..."
+            systemctl stop nas-monitor
+        fi
+
+        if systemctl is-enabled --quiet nas-monitor 2>/dev/null; then
+            log_info "Disabling nas-monitor service..."
+            systemctl disable nas-monitor
+        fi
+
+        # Sambaサービスを停止
+        if systemctl is-active --quiet smbd 2>/dev/null; then
+            log_info "Stopping Samba service..."
+            systemctl stop smbd
+        fi
+
+        if systemctl is-active --quiet nmbd 2>/dev/null; then
+            log_info "Stopping nmbd service..."
+            systemctl stop nmbd
+        fi
+
+        log_info "Existing services stopped"
+    else
+        log_info "No existing services found"
+    fi
+}
+
 # Raspberry Piチェック（オプション）
 check_hardware() {
     log_step "Checking hardware..."
@@ -461,6 +518,7 @@ main() {
     echo "=========================================="
     echo ""
 
+    cleanup_existing_setup
     check_hardware
     select_usb_device
     install_dependencies
