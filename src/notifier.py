@@ -278,6 +278,61 @@ Secret NAS - Raspberry Pi Zero WH
 
         return success
 
+    def send_deletion_cancelled_notification(self) -> bool:
+        """
+        削除キャンセル通知メールを送信
+        （警告送信後にアクセスがあった場合）
+
+        Returns:
+            送信成功した場合True
+        """
+        hostname = self._get_hostname()
+
+        subject = "[解除] Secret NAS データ削除がキャンセルされました"
+
+        body = f"""こんにちは、
+
+Secret NASシステムから自動通知です。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  データ削除がキャンセルされました
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+NASへのアクセスを検出したため、削除予定をキャンセルしました。
+以前送信した警告は無効となり、タイマーがリセットされました。
+
+【現在の状態】
+  ホスト名: {hostname}
+  アクセス検出日時: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}
+  タイマー: リセット完了
+
+【次回の削除予定】
+  本日から再び非アクティブ期間のカウントが開始されます。
+  設定された期間（デフォルト30日）アクセスがない場合、
+  再度警告メールが送信され、最終的にデータが削除されます。
+
+【NASアクセス情報】
+  Windows: \\\\{hostname}\\secure_share
+  Mac/Linux: smb://{hostname}.local/secure_share
+
+データは安全に保持されています。引き続きご利用ください。
+
+このメールはSecret NASシステムから自動送信されています。
+返信しないでください。
+
+Secret NAS - Raspberry Pi Zero WH
+"""
+
+        # メール送信
+        success = self._send_email(subject, body)
+
+        if success:
+            self.logger.info("Deletion cancelled notification sent successfully")
+        else:
+            self.logger.error("Failed to send deletion cancelled notification")
+
+        return success
+
     def _send_email(self, subject: str, body: str) -> bool:
         """
         実際にメールを送信

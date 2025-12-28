@@ -72,6 +72,9 @@ class NASMonitor:
         # 実行フラグ
         self.running = True
 
+        # 警告送信済みフラグ（アクセス時のキャンセル通知用）
+        self.any_warnings_sent = False
+
         # シグナルハンドラ設定
         signal.signal(signal.SIGTERM, self._handle_shutdown)
         signal.signal(signal.SIGINT, self._handle_shutdown)
@@ -109,11 +112,24 @@ class NASMonitor:
                         # Sambaのfull_auditログには共有名が含まれる
                         if 'secure_share' in line:
                             self.logger.debug(f"Access detected: {line.strip()}")
+
+                            # 警告送信済みの場合、キャンセル通知を送信
+                            if self.any_warnings_sent and self.notifier:
+                                try:
+                                    self.notifier.send_deletion_cancelled_notification()
+                                    self.logger.info("Deletion cancelled notification sent")
+                                except Exception as e:
+                                    self.logger.error(f"Failed to send cancellation notification: {e}")
+
+                            # アクセス時刻を更新
                             self.tracker.update_access()
 
-                            # 通知状態もリセット
+                            # 通知状態をリセット
                             if self.notifier:
                                 self.notifier.reset_notification_state()
+
+                            # 警告フラグをリセット
+                            self.any_warnings_sent = False
                     else:
                         # 新しい行がない場合は少し待つ
                         time.sleep(1)
@@ -161,6 +177,8 @@ class NASMonitor:
                             self.logger.info(
                                 f"Warning notification sent for day {warning_day}"
                             )
+                            # 警告送信済みフラグを立てる
+                            self.any_warnings_sent = True
                         else:
                             self.logger.error(
                                 f"Failed to send warning notification for day {warning_day}"
