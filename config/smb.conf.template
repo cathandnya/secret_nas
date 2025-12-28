@@ -54,7 +54,7 @@
     # Access Auditing (CRITICAL - Required for activity tracking)
     vfs objects = full_audit
     full_audit:prefix = %u|%I|%S
-    full_audit:success = connect disconnect open close read write mkdir rmdir rename
+    full_audit:success = connect disconnect open close read write rename
     full_audit:failure = none
     full_audit:facility = local5
     full_audit:priority = notice
