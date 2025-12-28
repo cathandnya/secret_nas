@@ -257,26 +257,47 @@ setup_inactivity_period() {
         inactivity_days=30
     fi
 
-    # 警告日の計算（7日前、3日前、1日前）
-    warning_day_1=$((inactivity_days - 7))
-    warning_day_2=$((inactivity_days - 3))
-    warning_day_3=$((inactivity_days - 1))
+    # 警告日の計算（削除日数に応じて調整）
+    local warning_days_array=()
 
-    # 警告日が有効かチェック
-    if [ $warning_day_1 -lt 1 ]; then
-        warning_day_1=1
-    fi
-    if [ $warning_day_2 -lt 1 ] || [ $warning_day_2 -le $warning_day_1 ]; then
-        warning_day_2=$((warning_day_1 + 1))
-    fi
-    if [ $warning_day_3 -lt 1 ] || [ $warning_day_3 -le $warning_day_2 ]; then
+    if [ $inactivity_days -le 1 ]; then
+        # 1日の場合: 警告なし（すぐに削除）
+        warning_days_array=()
+        log_warn "警告通知なし（削除期間が短すぎます）"
+    elif [ $inactivity_days -eq 2 ]; then
+        # 2日の場合: 1日目のみ
+        warning_days_array=(1)
+    elif [ $inactivity_days -eq 3 ]; then
+        # 3日の場合: 1日目と2日目
+        warning_days_array=(1 2)
+    elif [ $inactivity_days -le 7 ]; then
+        # 4-7日の場合: 中間点と最終日前
+        local mid=$((inactivity_days / 2))
+        local last=$((inactivity_days - 1))
+        if [ $mid -eq $last ]; then
+            warning_days_array=($mid)
+        else
+            warning_days_array=($mid $last)
+        fi
+    else
+        # 8日以上: N-7, N-3, N-1
+        warning_day_1=$((inactivity_days - 7))
+        warning_day_2=$((inactivity_days - 3))
         warning_day_3=$((inactivity_days - 1))
+        warning_days_array=($warning_day_1 $warning_day_2 $warning_day_3)
     fi
 
-    WARNING_DAYS="[$warning_day_1, $warning_day_2, $warning_day_3]"
+    # JSON配列形式に変換
+    if [ ${#warning_days_array[@]} -eq 0 ]; then
+        WARNING_DAYS="[]"
+    else
+        WARNING_DAYS="[$(IFS=, ; echo "${warning_days_array[*]}")]"
+    fi
 
     log_info "削除までの期間: $inactivity_days 日"
-    log_info "警告日: ${warning_day_1}日目、${warning_day_2}日目、${warning_day_3}日目"
+    if [ ${#warning_days_array[@]} -gt 0 ]; then
+        log_info "警告日: $(IFS='、' ; echo "${warning_days_array[*]}")日目"
+    fi
     echo ""
 }
 
@@ -424,8 +445,10 @@ main() {
     log_info "  systemctl status nas-monitor"
     echo ""
     log_warn "IMPORTANT: After ${inactivity_days:-30} days of inactivity, all data will be securely wiped!"
-    if [ ! -z "$WARNING_DAYS" ]; then
-        log_warn "Warning emails will be sent on days: ${warning_day_1}, ${warning_day_2}, ${warning_day_3}"
+    if [ ! -z "$WARNING_DAYS" ] && [ "$WARNING_DAYS" != "[]" ]; then
+        # JSON配列から警告日を抽出して表示
+        warning_days_display=$(echo "$WARNING_DAYS" | tr -d '[]')
+        log_warn "Warning emails will be sent on days: $warning_days_display"
     fi
     echo ""
 }
