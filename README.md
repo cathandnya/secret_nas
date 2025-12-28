@@ -218,7 +218,20 @@ sudo systemctl start nas-monitor
 
 ### 設定変更
 
-設定ファイル: `/etc/nas-monitor/config.json`
+#### 削除日数を変更する
+
+運用中に削除期間を変更したい場合、設定ファイルを編集します。
+
+**手順**:
+
+1. 設定ファイルを編集:
+```bash
+sudo nano /etc/nas-monitor/config.json
+```
+
+2. `inactivity_days` と `warning_days` を変更:
+
+設定ファイルの例: `/etc/nas-monitor/config.json`
 
 ```json
 {
@@ -243,6 +256,16 @@ sudo systemctl start nas-monitor
 }
 ```
 
+3. サービスを再起動（設定を反映）:
+```bash
+sudo systemctl restart nas-monitor
+```
+
+4. 設定が反映されたか確認:
+```bash
+sudo journalctl -u nas-monitor -n 20
+```
+
 #### 削除期間のカスタマイズ例
 
 - **14日で削除する場合**:
@@ -260,16 +283,23 @@ sudo systemctl start nas-monitor
 - **7日で削除する場合**（短期間）:
   ```json
   "inactivity_days": 7,
-  "warning_days": [1, 4, 6]
+  "warning_days": [3, 6]
   ```
 
-**注**: `warning_days` は自動計算されるため、通常は変更不要です。セットアップ時に削除日数を指定すれば、適切な警告日が自動設定されます。
+- **2日で削除する場合**（超短期）:
+  ```json
+  "inactivity_days": 2,
+  "warning_days": [1]
+  ```
 
-設定変更後は必ずサービスを再起動：
-
-```bash
-sudo systemctl restart nas-monitor
-```
+**重要な注意点**:
+- `warning_days` は `inactivity_days` より小さい値を設定してください
+- 警告日数の推奨値:
+  - 8日以上: `[N-7, N-3, N-1]`
+  - 4-7日: `[N/2, N-1]`
+  - 2-3日: 自動調整
+- 設定変更は即座に反映されますが、**既存の最終アクセス時刻は保持されます**
+- 例: 20日経過後に30日→60日に変更した場合、あと40日で削除されます（合計60日）
 
 ## テスト方法
 
