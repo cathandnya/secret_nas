@@ -50,7 +50,47 @@ Secret NASは、一定期間（デフォルト30日間）アクセスがない�
 
 ### 2. Secret NASのインストール
 
-#### 方法1: デプロイパッケージを使う（最も推奨） ⭐
+#### 方法1: GitHubから直接インストール（最も推奨） ⭐
+
+```bash
+# Raspberry PiにSSHでログイン
+ssh pi@raspberrypi.local
+
+# Gitをインストール
+sudo apt update
+sudo apt install -y git
+
+# リポジトリをクローン
+git clone https://github.com/cathandnya/secret_nas.git
+cd secret_nas
+
+# セットアップ実行
+sudo ./setup.sh
+```
+
+**メリット**:
+- 最新版を直接取得
+- アップデートが簡単（`git pull`）
+- 最もシンプルな手順
+
+#### 方法2: curlでダウンロード（Gitなし）
+
+```bash
+# Raspberry PiにSSHでログイン
+ssh pi@raspberrypi.local
+
+# リポジトリをダウンロード
+curl -L https://github.com/cathandnya/secret_nas/archive/refs/heads/main.tar.gz -o secret_nas.tar.gz
+
+# 展開
+tar -xzf secret_nas.tar.gz
+cd secret_nas-main
+
+# セットアップ実行
+sudo ./setup.sh
+```
+
+#### 方法3: デプロイパッケージを使う（ローカル開発時）
 
 ```bash
 # 開発マシンで、デプロイパッケージを作成
@@ -58,39 +98,18 @@ cd /path/to/secret_nas
 ./deploy.sh
 
 # Raspberry Piに転送（約20KB）
-scp secret_nas_deploy.tar.gz pi@pi.local:~/
+scp secret_nas_deploy.tar.gz pi@raspberrypi.local:~/
 
 # Raspberry PiにSSHでログイン
-ssh pi@pi.local
+ssh pi@raspberrypi.local
 
 # 展開してセットアップ
-mkdir -p ~/secret_nas
-tar -xzf secret_nas_deploy.tar.gz -C ~/secret_nas
-cd ~/secret_nas
+tar -xzf secret_nas_deploy.tar.gz
+cd secret_nas
 sudo ./setup.sh
 ```
 
-**メリット**:
-- 必要なファイルのみをパッケージング（約20KB）
-- テストファイルやDocker関連ファイルを除外
-- 転送が高速
-
-#### 方法2: 必要なファイルのみ直接転送
-
-```bash
-# 開発マシン（Mac/Linux）で、必要なファイルのみ転送
-cd /path/to/secret_nas
-scp -r setup.sh src config systemd scripts README.md pi@pi.local:~/secret_nas/
-
-# Raspberry PiにSSHでログイン
-ssh pi@pi.local
-
-# セットアップスクリプトを実行（root権限必要）
-cd ~/secret_nas
-sudo ./setup.sh
-```
-
-#### 方法3: USBメモリ経由
+#### 方法4: USBメモリ経由
 
 ```bash
 # 開発マシンで、デプロイパッケージをUSBメモリにコピー
@@ -742,6 +761,48 @@ smbclient //localhost/secure_share -U username
 - **7日目**: 自動消去実行
 
 ## トラブルシューティング
+
+### セットアップ時のエラー: `chown: invalid group: 'root:nasusers'`
+
+**症状**: `setup.sh`実行中に以下のエラーが発生:
+```
+chown: invalid group: 'root:nasusers'
+```
+
+**原因**: `nasusers`グループの作成前にマウントポイントの権限設定が実行された
+
+**解決方法**:
+
+```bash
+# 1. systemdをリロード
+sudo systemctl daemon-reload
+
+# 2. nasusersグループを作成
+sudo groupadd -f nasusers
+
+# 3. マウントポイントの権限を修正
+sudo chown root:nasusers /mnt/secure_nas
+sudo chmod 770 /mnt/secure_nas
+
+# 4. マウントを試す
+sudo mount /mnt/secure_nas
+
+# 5. マウント確認
+df -h | grep secure_nas
+```
+
+成功すれば、以下のような出力が表示されます:
+```
+/dev/mapper/secure_nas_crypt  447G   28K  424G   1% /mnt/secure_nas
+```
+
+マウントが成功したら、`setup.sh`を再実行してSambaと監視サービスの設定を完了してください:
+```bash
+cd ~/secret_nas
+sudo ./setup.sh
+```
+
+USBデバイス選択の質問では、**すでにセットアップ済みのため「sda」を選択せず**、Ctrl+Cでスクリプトを中断するか、別のデバイスを選択してください。または、以下の手動セットアップ手順に従ってください。
 
 ### NASにアクセスできない
 
