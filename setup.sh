@@ -171,8 +171,17 @@ select_usb_device() {
 
         if [ -n "$mount_point" ]; then
             has_mounted=true
-            log_warn "Unmounting /dev/$dev_name from $mount_point"
-            umount "/dev/$dev_name" 2>/dev/null || umount -l "/dev/$dev_name"
+
+            # デバイスパスを構築（マッパーデバイスの場合は /dev/mapper/ を使用）
+            local dev_path
+            if [[ "$dev_name" == *"mapper/"* ]] || [[ "$dev_name" == "$LUKS_NAME" ]]; then
+                dev_path="/dev/mapper/$(basename "$dev_name")"
+            else
+                dev_path="/dev/$dev_name"
+            fi
+
+            log_warn "Unmounting $dev_path from $mount_point"
+            umount "$mount_point" 2>/dev/null || umount -l "$mount_point"
         fi
     done < <(lsblk -ln -o NAME,MOUNTPOINT "$USB_DEVICE" 2>/dev/null)
 
