@@ -52,9 +52,10 @@
     force group = nasusers
 
     # Access Auditing (CRITICAL - Required for activity tracking)
+    # Samba 4.22.4 only supports connect/disconnect operations
     vfs objects = full_audit
     full_audit:prefix = %u|%I|%S
-    full_audit:success = connect disconnect open close read write rename
+    full_audit:success = connect disconnect
     full_audit:failure = none
     full_audit:facility = local5
     full_audit:priority = notice
