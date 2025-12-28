@@ -224,16 +224,26 @@ setup_samba() {
     # Samba設定をコピー
     cp "$SCRIPT_DIR/config/smb.conf.template" /etc/samba/smb.conf
 
+    # systemd override for Samba (file descriptor limit)
+    mkdir -p /etc/systemd/system/smbd.service.d
+    cat > /etc/systemd/system/smbd.service.d/override.conf <<EOF
+[Service]
+LimitNOFILE=16384
+EOF
+
     # rsyslog設定（Samba監査ログ）
     cat > /etc/rsyslog.d/10-samba.conf <<EOF
 # Samba audit logs
 local5.* /var/log/samba/audit.log
 EOF
 
-    # ログディレクトリ作成
+    # ログディレクトリとファイル作成
     mkdir -p /var/log/samba
+    touch /var/log/samba/audit.log
+    chmod 644 /var/log/samba/audit.log
 
     # サービス再起動
+    systemctl daemon-reload
     systemctl restart rsyslog
     systemctl restart smbd
     systemctl enable smbd

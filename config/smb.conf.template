@@ -10,21 +10,14 @@
     # Security Settings
     security = user
     map to guest = never
-    encrypt passwords = yes
-    min protocol = SMB2
-    max protocol = SMB3
+    server min protocol = SMB2
 
     # Performance Optimization for Pi Zero WH (512MB RAM, 1GHz CPU)
-    socket options = TCP_NODELAY IPTOS_LOWDELAY SO_RCVBUF=65536 SO_SNDBUF=65536
     read raw = yes
     write raw = yes
     max xmit = 65535
-    dead time = 15
+    deadtime = 15
     getwd cache = yes
-
-    # Memory Optimization
-    max connections = 10
-    max open files = 100
 
     # Logging (Minimal for resource saving)
     log level = 1
@@ -61,11 +54,10 @@
     # Access Auditing (CRITICAL - Required for activity tracking)
     vfs objects = full_audit
     full_audit:prefix = %u|%I|%S
-    full_audit:success = connect disconnect opendir mkdir rmdir open close read pread write pwrite rename unlink
+    full_audit:success = connect disconnect open close read write mkdir rmdir rename
     full_audit:failure = none
     full_audit:facility = local5
     full_audit:priority = notice
 
     # Performance
     strict allocate = yes
-    allocation roundup size = 1048576

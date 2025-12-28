@@ -762,7 +762,9 @@ smbclient //localhost/secure_share -U username
 
 ## トラブルシューティング
 
-### セットアップ時のエラー: `chown: invalid group: 'root:nasusers'`
+### セットアップ時のエラー
+
+#### 1. `chown: invalid group: 'root:nasusers'`
 
 **症状**: `setup.sh`実行中に以下のエラーが発生:
 ```
@@ -804,18 +806,181 @@ sudo ./setup.sh
 
 USBデバイス選択の質問では、**すでにセットアップ済みのため「sda」を選択せず**、Ctrl+Cでスクリプトを中断するか、別のデバイスを選択してください。または、以下の手動セットアップ手順に従ってください。
 
-### NASにアクセスできない
+#### 2. `Cannot exclusively open /dev/sda, device in use`
+
+**症状**: LUKS暗号化セットアップ時に以下のエラーが発生:
+```
+Cannot exclusively open /dev/sda, device in use.
+```
+
+**原因**: デバイスが既にマウントされているか、LUKS暗号化が既に完了している
+
+**解決方法**:
 
 ```bash
-# Sambaサービスの状態確認
+# 現在のマウント状態を確認
+lsblk
+df -h | grep sda
+
+# LUKS暗号化済みか確認
+sudo cryptsetup status secure_nas_crypt
+
+# 既に暗号化済みの場合は、setup.sh を再実行せず、手動でSambaと監視サービスをセットアップ
+```
+
+#### 3. Samba サービスがクラッシュ (SIGABRT)
+
+**症状**: Sambaサービスが以下のエラーで起動しない:
+```
+smbd[PID]: PANIC: assert failed: real_max > 100
+```
+
+**原因**: Samba 4.22.4では`max open files = 100`が低すぎてアサーション失敗を引き起こす
+
+**解決方法** (setup.shで既に対応済み):
+
+```bash
+# 1. smb.confから問題のある行を削除（既に修正済み）
+sudo nano /etc/samba/smb.conf
+# 以下の行があれば削除:
+# max open files = 100
+
+# 2. systemd override でファイルディスクリプタ制限を設定
+sudo mkdir -p /etc/systemd/system/smbd.service.d
+sudo tee /etc/systemd/system/smbd.service.d/override.conf > /dev/null <<'EOF'
+[Service]
+LimitNOFILE=16384
+EOF
+
+# 3. systemdをリロード
+sudo systemctl daemon-reload
+
+# 4. Sambaサービスを再起動
+sudo systemctl restart smbd
+
+# 5. サービス状態確認
+sudo systemctl status smbd
+```
+
+#### 4. `full_audit` VFS モジュールエラー
+
+**症状**: Sambaログに以下のエラーが表示される:
+```
+init_bitmap: Could not find opname unlink
+init_bitmap: Could not find opname opendir
+init_bitmap: Could not find opname pread
+init_bitmap: Could not find opname pwrite
+```
+
+**原因**: Samba 4.22.4では`full_audit`モジュールの一部の操作名が無効
+
+**解決方法** (setup.shで既に対応済み):
+
+`/etc/samba/smb.conf`の`full_audit:success`パラメータを以下のように修正:
+
+```ini
+# 修正前（エラーが発生）
+full_audit:success = connect disconnect open opendir close read pread write pwrite mkdir rmdir rename unlink
+
+# 修正後（正常動作）
+full_audit:success = connect disconnect open close read write mkdir rmdir rename
+```
+
+修正後、Sambaを再起動:
+```bash
+sudo systemctl restart smbd
+```
+
+### 接続トラブルシューティング
+
+#### 1. NASにアクセスできない
+
+**基本的な確認手順**:
+
+```bash
+# 1. Sambaサービスの状態確認
 sudo systemctl status smbd
 
-# ファイアウォール確認（必要に応じて無効化）
+# 2. サービスが停止している場合は起動
+sudo systemctl start smbd
+sudo systemctl enable smbd
+
+# 3. ネットワーク接続確認
+ping raspberrypi.local  # またはホスト名
+ping 192.168.1.X  # IPアドレスで確認
+
+# 4. ファイアウォール確認（必要に応じて無効化）
 sudo ufw status
 sudo ufw allow samba
 
-# ネットワーク接続確認
-ping raspberrypi.local
+# 5. Samba設定の構文チェック
+sudo testparm -s
+```
+
+#### 2. 「サーバ上に共有が存在しません」エラー (Mac/Windows)
+
+**症状**: Mac/Windowsから`smb://raspberrypi.local/secure_share`に接続すると「サーバ上に共有が存在しません」と表示される
+
+**原因**: 認証エラー、権限エラー、またはSamba設定の問題
+
+**解決方法**:
+
+```bash
+# 1. ローカルホストから接続テスト
+smbclient //localhost/secure_share -U username
+# パスワード入力後、接続できればSambaの設定は正常
+
+# 2. 共有一覧を確認
+smbclient -L localhost -U username
+
+# 3. マウントポイントの権限確認
+ls -la /mnt/secure_nas
+# 以下のように表示されるべき:
+# drwxrwx--- 2 root nasusers 4096 ... /mnt/secure_nas
+
+# 4. 権限が異なる場合は修正
+sudo chown root:nasusers /mnt/secure_nas
+sudo chmod 770 /mnt/secure_nas
+
+# 5. ユーザーが nasusers グループに所属しているか確認
+groups username
+# nasusers が含まれていない場合は追加
+sudo usermod -aG nasusers username
+
+# 6. Sambaパスワードが設定されているか確認
+sudo pdbedit -L
+# ユーザーが表示されない場合は追加
+sudo smbpasswd -a username
+
+# 7. Sambaサービスを再起動
+sudo systemctl restart smbd
+
+# 8. Raspberry PiのIPアドレスを確認
+hostname -I
+
+# 9. Mac/WindowsからIPアドレスで直接接続
+# Mac: smb://192.168.1.X/secure_share
+# Windows: \\192.168.1.X\secure_share
+```
+
+#### 3. 接続できるがファイル一覧が表示されない
+
+**症状**: Samba接続は成功するが、ファイル一覧の取得時に「Permission denied」エラーが発生
+
+**原因**: マウントポイントの権限が正しく設定されていない
+
+**解決方法**:
+
+```bash
+# マウントポイントの権限を確認
+ls -la /mnt/secure_nas
+
+# 正しい権限に設定
+sudo chown root:nasusers /mnt/secure_nas
+sudo chmod 770 /mnt/secure_nas
+
+# Sambaを再起動
+sudo systemctl restart smbd
 ```
 
 ### メール通知が届かない
