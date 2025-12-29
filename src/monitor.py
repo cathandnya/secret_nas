@@ -257,10 +257,11 @@ class NASMonitor:
         check_interval = 6 * 60 * 60  # 6時間
         last_check = time.time()
 
-        # TODO: 本番環境ではSambaログ監視を別スレッドで実行
-        # import threading
-        # log_thread = threading.Thread(target=self.monitor_samba_log, daemon=True)
-        # log_thread.start()
+        # Sambaログ監視を別スレッドで実行
+        import threading
+        log_thread = threading.Thread(target=self.monitor_samba_log, daemon=True)
+        log_thread.start()
+        self.logger.info("Samba log monitoring thread started")
 
         self.logger.info("Entering main monitoring loop...")
 
