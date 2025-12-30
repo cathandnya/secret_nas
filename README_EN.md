@@ -1,6 +1,6 @@
 # Secret NAS
 
-Secure NAS system with auto-wipe functionality for Raspberry Pi Zero WH
+Secure NAS system with auto-wipe functionality for Raspberry Pi
 
 **Language**: [日本語](README.md) | English
 

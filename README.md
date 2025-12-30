@@ -1,6 +1,6 @@
 # Secret NAS
 
-Raspberry Pi Zero WH向けの自動消去機能付きセキュアNASシステム
+Raspberry Pi向けの自動消去機能付きセキュアNASシステム
 
 **Language**: 日本語 | [English](README_EN.md)
 
