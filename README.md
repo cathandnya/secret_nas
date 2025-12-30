@@ -2,6 +2,8 @@
 
 Raspberry Pi Zero WH向けの自動消去機能付きセキュアNASシステム
 
+**Language**: 日本語 | [English](README_EN.md)
+
 > 📁 **ディレクトリ構造とデプロイ方法**: 詳細は [STRUCTURE.md](STRUCTURE.md) を参照
 
 ## 概要

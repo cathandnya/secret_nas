@@ -1,5 +1,7 @@
 # Secret NAS Directory Structure
 
+**Language**: [日本語](STRUCTURE.md) | English
+
 ## 📁 Overall Project Structure
 
 ```

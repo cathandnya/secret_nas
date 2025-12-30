@@ -2,6 +2,8 @@
 
 Secure NAS system with auto-wipe functionality for Raspberry Pi Zero WH
 
+**Language**: [日本語](README.md) | English
+
 > 📁 **Directory Structure and Deployment**: See [STRUCTURE_EN.md](STRUCTURE_EN.md) for details
 
 ## Overview
