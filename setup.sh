@@ -503,7 +503,9 @@ setup_monitor() {
     mkdir -p /etc/nas-monitor
 
     # 設定ファイル作成
-    cat > /etc/nas-monitor/config.json <<EOF
+    if [ -z "$NOTIFICATION_CONFIG" ]; then
+        # 通知が無効の場合
+        cat > /etc/nas-monitor/config.json <<EOF
 {
   "mount_point": "$MOUNT_POINT",
   "device": "$USB_DEVICE",
@@ -513,9 +515,27 @@ setup_monitor() {
   "state_file": "/var/lib/nas-monitor/last_access.json",
   "notification_state_file": "/var/lib/nas-monitor/notification_state.json",
   "shutdown_after_wipe": false,
-  ${NOTIFICATION_CONFIG:-"notification": { "enabled": false }}
+  "notification": {
+    "enabled": false
+  }
 }
 EOF
+    else
+        # 通知が有効の場合
+        cat > /etc/nas-monitor/config.json <<EOF
+{
+  "mount_point": "$MOUNT_POINT",
+  "device": "$USB_DEVICE",
+  "keyfile": "$KEYFILE",
+  "inactivity_days": ${inactivity_days:-30},
+  "warning_days": ${WARNING_DAYS:-[23, 27, 29]},
+  "state_file": "/var/lib/nas-monitor/last_access.json",
+  "notification_state_file": "/var/lib/nas-monitor/notification_state.json",
+  "shutdown_after_wipe": false,
+  $NOTIFICATION_CONFIG
+}
+EOF
+    fi
 
     log_info "Configuration saved to /etc/nas-monitor/config.json"
 
