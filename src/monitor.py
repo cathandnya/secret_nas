@@ -253,8 +253,8 @@ class NASMonitor:
             self.execute_wipe()
             return
 
-        # 定期チェック（6時間ごと）
-        check_interval = 6 * 60 * 60  # 6時間
+        # 定期チェック（1時間ごと）
+        check_interval = 1 * 60 * 60  # 1時間
         last_check = time.time()
 
         # Sambaログ監視を別スレッドで実行

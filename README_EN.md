@@ -265,7 +265,7 @@ sudo journalctl -u nas-monitor -n 20
 
 1. Real-time monitoring of Samba access logs
 2. Updates last access time when access detected
-3. Checks elapsed days every 6 hours
+3. Checks elapsed days every hour
 4. 30 days without access → keyfile completely deleted with `shred`
 5. After key deletion, USB becomes permanently undecryptable
 
@@ -438,7 +438,7 @@ Secret NAS is optimized to run on Raspberry Pi Zero WH's limited resources (512M
 - Samba max connections: 10
 - Monitor daemon memory limit: 50MB
 - CPU usage limit: 20%
-- Check interval: 6 hours
+- Check interval: 1 hour
 - Log level: Minimal
 
 For higher performance, use Raspberry Pi 3/4.
