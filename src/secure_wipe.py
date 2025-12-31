@@ -145,9 +145,30 @@ class SecureWiper:
         device = lines[1].split()[0]
         return device
 
+    def stop_samba(self) -> bool:
+        """
+        Sambaサービスを停止
+
+        Returns:
+            成功した場合True
+        """
+        self.logger.info("Stopping Samba service")
+
+        try:
+            subprocess.run(
+                ['systemctl', 'stop', 'smbd'],
+                check=False,  # 失敗しても続行
+                timeout=30
+            )
+            self.logger.info("Samba service stopped")
+            return True
+        except Exception as e:
+            self.logger.warning(f"Failed to stop Samba (continuing anyway): {e}")
+            return True  # 失敗しても続行
+
     def unmount_filesystem(self) -> bool:
         """
-        ファイルシステムをアンマウント
+        ファイルシステムをアンマウント（強制）
 
         Returns:
             成功した場合True
@@ -155,22 +176,32 @@ class SecureWiper:
         self.logger.info(f"Unmounting {self.mount_point}")
 
         try:
-            # ファイルシステムをアンマウント
+            # 通常のアンマウントを試行
             subprocess.run(
                 ['umount', str(self.mount_point)],
                 check=True,
                 timeout=30
             )
-
-            # 少し待つ
-            time.sleep(1)
-
             self.logger.info(f"Successfully unmounted {self.mount_point}")
+            time.sleep(1)
             return True
 
-        except subprocess.CalledProcessError as e:
-            self.logger.error(f"Failed to unmount {self.mount_point}: {e}")
-            return False
+        except subprocess.CalledProcessError:
+            # 通常のアンマウントが失敗したら、強制アンマウント（lazy unmount）
+            self.logger.warning("Normal unmount failed, trying lazy unmount")
+            try:
+                subprocess.run(
+                    ['umount', '-l', str(self.mount_point)],
+                    check=True,
+                    timeout=30
+                )
+                self.logger.info(f"Successfully unmounted {self.mount_point} (lazy)")
+                time.sleep(1)
+                return True
+            except subprocess.CalledProcessError as e:
+                self.logger.error(f"Failed to unmount even with -l flag: {e}")
+                # アンマウント失敗でも続行（キーファイル削除が重要）
+                return True
 
     def close_luks_device(self) -> bool:
         """
@@ -194,8 +225,10 @@ class SecureWiper:
             return True
 
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"Failed to close LUKS device: {e}")
-            return False
+            self.logger.warning(f"Failed to close LUKS device: {e}")
+            # クローズ失敗でも続行（キーファイル削除とヘッダー破壊が重要）
+            self.logger.warning("Continuing with wipe despite close failure")
+            return True
 
     def shred_keyfile(self, passes: int = 3) -> bool:
         """
@@ -287,19 +320,20 @@ class SecureWiper:
 
         self.logger.info("All safety checks passed")
 
-        # ステップ1: ファイルシステムをアンマウント
-        if not self.unmount_filesystem():
-            raise RuntimeError("Failed to unmount filesystem")
+        # ステップ1: Sambaサービスを停止
+        self.stop_samba()
 
-        # ステップ2: LUKSデバイスをクローズ
-        if not self.close_luks_device():
-            raise RuntimeError("Failed to close LUKS device")
+        # ステップ2: ファイルシステムをアンマウント（強制）
+        self.unmount_filesystem()
 
-        # ステップ3: キーファイルを完全削除
+        # ステップ3: LUKSデバイスをクローズ（失敗しても続行）
+        self.close_luks_device()
+
+        # ステップ4: キーファイルを完全削除
         if not self.shred_keyfile():
             raise RuntimeError("Failed to shred keyfile")
 
-        # ステップ4: LUKSヘッダー削除（オプション）
+        # ステップ5: LUKSヘッダー削除（オプション）
         if erase_header:
             if not self.erase_luks_header():
                 self.logger.warning("LUKS header erase failed, but keyfile is deleted")
