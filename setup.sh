@@ -271,8 +271,16 @@ setup_storage() {
     groupadd -f nasusers
     log_info "Created nasusers group"
 
-    # マウントポイント作成
+    # マウントポイント作成（既存の古いファイルをクリーンアップ）
     mkdir -p "$MOUNT_POINT"
+
+    # マウントされていないディレクトリ内の古いファイルを削除
+    # （過去のテストやインストールで残ったゴーストファイルを除去）
+    if [ "$(ls -A "$MOUNT_POINT" 2>/dev/null)" ]; then
+        log_info "Cleaning up old files in unmounted mount point..."
+        rm -rf "$MOUNT_POINT"/*
+        rm -rf "$MOUNT_POINT"/.[!.]*  # 隠しファイルも削除（. と .. は除外）
+    fi
 
     # UUIDを取得
     LUKS_UUID=$(cryptsetup luksUUID "$USB_DEVICE")
