@@ -28,7 +28,8 @@ PrivateTmp=true
 ProtectSystem=strict
 # ProtectHome disabled to allow keyfile deletion in /root
 # /etc write access needed to remove fstab entry during wipe
-ReadWritePaths=/var/lib/nas-monitor /var/log /mnt/secure_nas /etc/fstab /root
+# Note: Must specify /etc directory, not just /etc/fstab, for sed -i to work
+ReadWritePaths=/var/lib/nas-monitor /var/log /mnt/secure_nas /etc /root
 
 # Logging
 StandardOutput=journal

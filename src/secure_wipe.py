@@ -192,37 +192,76 @@ class SecureWiper:
             成功した場合True
         """
         try:
+            # fstab 削除前に内容を確認
+            self.logger.info("Reading current fstab entries...")
+            result = subprocess.run(
+                ['grep', str(self.mount_point), '/etc/fstab'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                self.logger.info(f"Found fstab entry: {result.stdout.strip()}")
+            else:
+                self.logger.warning("Mount point not found in fstab (already removed?)")
+
             # fstab からマウントポイントのエントリを削除
             self.logger.info("Removing fstab entry to prevent auto-remount")
-            subprocess.run(
+            result = subprocess.run(
                 ['sed', '-i', f'\\|{self.mount_point}|d', '/etc/fstab'],
+                capture_output=True,
+                text=True,
                 check=True,
                 timeout=10
             )
 
+            # 削除を確認
+            self.logger.info("Verifying fstab entry removal...")
+            verify = subprocess.run(
+                ['grep', str(self.mount_point), '/etc/fstab'],
+                capture_output=True,
+                timeout=5
+            )
+            if verify.returncode == 0:
+                self.logger.error("FAILED: fstab entry still exists after deletion!")
+                return False
+            else:
+                self.logger.info("✓ Fstab entry successfully removed")
+
             # systemd の自動生成マウントユニットをマスク
             # /mnt/secure_nas -> mnt-secure_nas.mount
-            mount_unit = self.mount_point.lstrip('/').replace('/', '-') + '.mount'
+            mount_unit = str(self.mount_point).lstrip('/').replace('/', '-') + '.mount'
             self.logger.info(f"Masking systemd mount unit: {mount_unit}")
-            subprocess.run(
+            result = subprocess.run(
                 ['systemctl', 'mask', mount_unit],
+                capture_output=True,
+                text=True,
                 check=False,  # ユニットが存在しない場合もあるので失敗を許容
-                timeout=10,
-                capture_output=True
+                timeout=10
             )
+            if result.returncode == 0:
+                self.logger.info(f"✓ Successfully masked {mount_unit}")
+            else:
+                self.logger.warning(f"Failed to mask {mount_unit}: {result.stderr.strip()}")
 
             # systemd 設定を再読み込み
+            self.logger.info("Reloading systemd daemon...")
             subprocess.run(
                 ['systemctl', 'daemon-reload'],
                 check=True,
                 timeout=10
             )
 
-            self.logger.info("Auto-remount prevention configured")
+            self.logger.info("✓ Auto-remount prevention configured successfully")
             return True
 
-        except Exception as e:
+        except subprocess.CalledProcessError as e:
             self.logger.error(f"Failed to prevent auto-remount: {e}")
+            if e.stderr:
+                self.logger.error(f"  stderr: {e.stderr.strip()}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Unexpected error in prevent_auto_remount: {e}")
             return False
 
     def unmount_filesystem(self) -> bool:
@@ -239,27 +278,62 @@ class SecureWiper:
             self.logger.info(f"{self.mount_point} is already unmounted")
             return True
 
-        # systemd による自動再マウントを防止
-        self.prevent_auto_remount()
+        # CRITICAL: systemd による自動再マウントを**先に**防止
+        self.logger.info("Preventing systemd auto-remount BEFORE unmounting...")
+        if not self.prevent_auto_remount():
+            self.logger.error("CRITICAL: Failed to prevent auto-remount")
+            self.logger.error("Continuing anyway, but remount may occur")
 
         try:
             # 通常のアンマウントを試行
+            self.logger.info("Attempting normal unmount...")
             subprocess.run(
                 ['umount', str(self.mount_point)],
+                capture_output=True,
+                text=True,
                 check=True,
                 timeout=30
             )
+            self.logger.info("umount command succeeded")
             time.sleep(1)
 
             # 検証：本当にアンマウントされたか確認
             if not self.is_mounted():
-                self.logger.info(f"Successfully unmounted {self.mount_point}")
+                self.logger.info(f"✓ Successfully unmounted {self.mount_point}")
+
+                # さらに検証: systemd マウントユニットの状態確認
+                mount_unit = str(self.mount_point).lstrip('/').replace('/', '-') + '.mount'
+                check = subprocess.run(
+                    ['systemctl', 'is-active', mount_unit],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if check.returncode == 0:
+                    self.logger.error(f"WARNING: {mount_unit} is still active!")
+                else:
+                    self.logger.info(f"✓ {mount_unit} is inactive")
+
                 return True
             else:
-                self.logger.warning("umount command succeeded but mount point is still mounted")
+                self.logger.error("CRITICAL: umount succeeded but device is still mounted!")
+                self.logger.error("Possible systemd auto-remount occurred")
 
-        except subprocess.CalledProcessError:
-            self.logger.warning("Normal unmount failed, trying forceful unmount")
+                # デバッグ情報を記録
+                mount_info = subprocess.run(
+                    ['mount'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                for line in mount_info.stdout.split('\n'):
+                    if str(self.mount_point) in line:
+                        self.logger.error(f"  Current mount: {line}")
+
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"Normal unmount failed: {e}")
+            if e.stderr:
+                self.logger.warning(f"  umount stderr: {e.stderr.strip()}")
 
         # 強制アンマウント試行1: プロセスをkillしてから通常アンマウント
         try:
