@@ -182,6 +182,49 @@ class SecureWiper:
         except Exception:
             return False
 
+    def prevent_auto_remount(self) -> bool:
+        """
+        systemdによる自動再マウントを防止
+
+        /etc/fstab のエントリを削除し、systemd の自動マウントユニットをマスクする
+
+        Returns:
+            成功した場合True
+        """
+        try:
+            # fstab からマウントポイントのエントリを削除
+            self.logger.info("Removing fstab entry to prevent auto-remount")
+            subprocess.run(
+                ['sed', '-i', f'\\|{self.mount_point}|d', '/etc/fstab'],
+                check=True,
+                timeout=10
+            )
+
+            # systemd の自動生成マウントユニットをマスク
+            # /mnt/secure_nas -> mnt-secure_nas.mount
+            mount_unit = self.mount_point.lstrip('/').replace('/', '-') + '.mount'
+            self.logger.info(f"Masking systemd mount unit: {mount_unit}")
+            subprocess.run(
+                ['systemctl', 'mask', mount_unit],
+                check=False,  # ユニットが存在しない場合もあるので失敗を許容
+                timeout=10,
+                capture_output=True
+            )
+
+            # systemd 設定を再読み込み
+            subprocess.run(
+                ['systemctl', 'daemon-reload'],
+                check=True,
+                timeout=10
+            )
+
+            self.logger.info("Auto-remount prevention configured")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Failed to prevent auto-remount: {e}")
+            return False
+
     def unmount_filesystem(self) -> bool:
         """
         ファイルシステムをアンマウント（強制）
@@ -195,6 +238,9 @@ class SecureWiper:
         if not self.is_mounted():
             self.logger.info(f"{self.mount_point} is already unmounted")
             return True
+
+        # systemd による自動再マウントを防止
+        self.prevent_auto_remount()
 
         try:
             # 通常のアンマウントを試行
