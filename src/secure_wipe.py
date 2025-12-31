@@ -570,9 +570,8 @@ class SecureWiper:
 
         # システム再起動（オプション）
         if reboot_after:
-            self.logger.critical("Rebooting system in 10 seconds...")
+            self.logger.critical("Rebooting system now...")
             self.logger.critical("This will unmask the mount unit and restore normal operation")
-            time.sleep(10)
             subprocess.run(['reboot'])
 
         return True
