@@ -208,7 +208,7 @@ class SecureWiper:
             # fstab からマウントポイントのエントリを削除
             self.logger.info("Removing fstab entry to prevent auto-remount")
             result = subprocess.run(
-                ['sed', '-i', f'\\|{self.mount_point}|d', '/etc/fstab'],
+                ['sed', '-i', f'\\|{str(self.mount_point)}|d', '/etc/fstab'],
                 capture_output=True,
                 text=True,
                 check=True,
