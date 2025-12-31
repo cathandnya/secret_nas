@@ -387,6 +387,22 @@ class SecureWiper:
             if not self.erase_luks_header():
                 self.logger.warning("LUKS header erase failed, but keyfile is deleted")
 
+        # ステップ6: マウントポイント内のゴーストファイルを削除
+        # （アンマウント後にSDカード上に残った平文ファイルを削除）
+        try:
+            import glob
+            ghost_files = glob.glob(f"{self.mount_point}/*") + glob.glob(f"{self.mount_point}/.[!.]*")
+            if ghost_files:
+                self.logger.warning(f"Cleaning up {len(ghost_files)} ghost files in unmounted mount point")
+                subprocess.run(
+                    ['rm', '-rf'] + ghost_files,
+                    check=True,
+                    timeout=30
+                )
+                self.logger.info("Ghost files removed from mount point")
+        except Exception as e:
+            self.logger.warning(f"Failed to clean ghost files (not critical): {e}")
+
         self.logger.critical("=" * 60)
         self.logger.critical("SECURE WIPE COMPLETED SUCCESSFULLY")
         self.logger.critical("Data is now PERMANENTLY UNRECOVERABLE")

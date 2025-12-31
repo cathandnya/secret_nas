@@ -45,6 +45,10 @@
     browseable = yes
     guest ok = no
 
+    # Security: Prevent writes to unmounted directory
+    # Check if path is actually a mount point before allowing access
+    preexec = /bin/bash -c "mountpoint -q /mnt/secure_nas || exit 1"
+
     # File Permissions
     create mask = 0660
     directory mask = 0770
