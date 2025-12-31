@@ -187,7 +187,8 @@ class SecureWiper:
         """
         systemdによる自動再マウントを防止
 
-        /etc/fstab のエントリを削除し、systemd の自動マウントユニットをマスクする
+        /etc/fstab のエントリを削除し、systemd マウントユニットを停止する。
+        システム再起動後は fstab エントリがないため、マウントユニットは自動生成されない。
 
         Returns:
             成功した場合True
@@ -207,7 +208,7 @@ class SecureWiper:
                 self.logger.warning("Mount point not found in fstab (already removed?)")
 
             # fstab からマウントポイントのエントリを削除
-            self.logger.info("Removing fstab entry to prevent auto-remount")
+            self.logger.info("Removing fstab entry to prevent auto-remount after reboot")
             result = subprocess.run(
                 ['sed', '-i', f'\\|{str(self.mount_point)}|d', '/etc/fstab'],
                 capture_output=True,
@@ -229,11 +230,10 @@ class SecureWiper:
             else:
                 self.logger.info("✓ Fstab entry successfully removed")
 
-            # systemd の自動生成マウントユニットを停止してマスク
+            # systemd マウントユニットを停止（即座にアンマウント）
             # /mnt/secure_nas -> mnt-secure_nas.mount
             mount_unit = str(self.mount_point).lstrip('/').replace('/', '-') + '.mount'
 
-            # CRITICAL: 先にユニットを停止（マスクだけでは実行中のユニットは止まらない）
             self.logger.info(f"Stopping systemd mount unit: {mount_unit}")
             stop_result = subprocess.run(
                 ['systemctl', 'stop', mount_unit],
@@ -247,28 +247,7 @@ class SecureWiper:
             else:
                 self.logger.warning(f"Failed to stop {mount_unit} (may not be running): {stop_result.stderr.strip()}")
 
-            # 次にマスクして将来の起動を防止
-            self.logger.info(f"Masking systemd mount unit: {mount_unit}")
-            mask_result = subprocess.run(
-                ['systemctl', 'mask', mount_unit],
-                capture_output=True,
-                text=True,
-                check=False,  # ユニットが存在しない場合もあるので失敗を許容
-                timeout=10
-            )
-            if mask_result.returncode == 0:
-                self.logger.info(f"✓ Successfully masked {mount_unit}")
-            else:
-                self.logger.warning(f"Failed to mask {mount_unit}: {mask_result.stderr.strip()}")
-
-            # systemd 設定を再読み込み
-            self.logger.info("Reloading systemd daemon...")
-            subprocess.run(
-                ['systemctl', 'daemon-reload'],
-                check=True,
-                timeout=10
-            )
-
+            # マスクと daemon-reload は不要（再起動時に systemd が fstab を再読み込みして自動解決）
             self.logger.info("✓ Auto-remount prevention configured successfully")
             return True
 
