@@ -56,9 +56,10 @@ class SecureWiper:
         if not self.keyfile:
             errors.append("Keyfile path is not specified")
 
-        # 2. キーファイルが存在するか
+        # 2. キーファイルが存在するか（警告のみ、クリーンアップ時は許容）
         if not self.keyfile.exists():
-            errors.append(f"Keyfile {self.keyfile} does not exist")
+            self.logger.warning(f"Keyfile {self.keyfile} does not exist - may have been already deleted")
+            # クリーンアップのため、エラーとして扱わない
 
         # 3. デバイスが指定されているか
         if not self.device:
@@ -601,14 +602,19 @@ class SecureWiper:
         # ステップ4: LUKSデバイスをクローズ（失敗しても続行）
         self.close_luks_device()
 
-        # ステップ5: キーファイルを完全削除
-        if not self.shred_keyfile():
-            raise RuntimeError("Failed to shred keyfile")
-
-        # ステップ6: LUKSヘッダー削除（オプション）
+        # ステップ5: LUKSヘッダー削除（オプション）
         if erase_header:
             if not self.erase_luks_header():
-                self.logger.warning("LUKS header erase failed, but keyfile is deleted")
+                self.logger.warning("LUKS header erase failed, but continuing to keyfile deletion")
+
+        # ステップ6: キーファイルを完全削除（最後に実行）
+        # クリーンアップ時に既に削除されている可能性があるため、失敗を許容
+        if self.keyfile.exists():
+            if not self.shred_keyfile():
+                self.logger.error("Failed to shred keyfile - manual cleanup may be required")
+                raise RuntimeError("Failed to shred keyfile")
+        else:
+            self.logger.warning(f"Keyfile {self.keyfile} already deleted - skipping shred")
 
         self.logger.critical("=" * 60)
         self.logger.critical("SECURE WIPE COMPLETED SUCCESSFULLY")
