@@ -22,7 +22,8 @@ secret_nas/
 │   │   └── smb.conf.template       # Samba configuration
 │   ├── systemd/                    # systemd units
 │   │   ├── nas-monitor.service     # Monitor service definition
-│   │   └── smbd-wait-mount.service # Samba mount wait service
+│   │   ├── smbd-wait-mount.service # Samba mount wait service
+│   │   └── mnt-secure_nas-cleanup.service # Unmount cache cleanup service
 │   └── scripts/                    # Test scripts for Raspberry Pi
 │       ├── quick-test.sh           # Quick test
 │       └── test-all.sh             # Integration test
@@ -64,6 +65,7 @@ src/logger.py                       # Logging
 config/smb.conf.template            # Samba configuration template
 systemd/nas-monitor.service         # systemd service
 systemd/smbd-wait-mount.service     # Samba mount wait service
+systemd/mnt-secure_nas-cleanup.service # Unmount cache cleanup service
 scripts/quick-test.sh               # Quick test
 scripts/test-all.sh                 # Integration test
 ```
@@ -206,7 +208,7 @@ After setup, the following files are created on Raspberry Pi:
 | Category | File Count | Size |
 |----------|-----------|------|
 | Deploy files (compressed) | 1 | 15-20KB |
-| Deploy files (extracted) | 13 | 50-60KB |
+| Deploy files (extracted) | 14 | 50-60KB |
 | After installation | - | ~100KB |
 | Config/state files | - | 1-5KB |
 | Log files (daily) | - | 10-50KB |

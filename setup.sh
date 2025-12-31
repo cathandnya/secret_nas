@@ -373,13 +373,18 @@ EOF
     # マウント待機版のsmbd.serviceをインストール
     cp "$SCRIPT_DIR/systemd/smbd-wait-mount.service" /etc/systemd/system/smbd.service
 
+    # ページキャッシュクリアサービスをインストール（アンマウント時のセキュリティ強化）
+    cp "$SCRIPT_DIR/systemd/mnt-secure_nas-cleanup.service" /etc/systemd/system/
+    log_info "Installed page cache cleanup service for unmount security"
+
     # サービス再起動
     systemctl daemon-reload
     systemctl restart rsyslog
     systemctl enable smbd
+    systemctl enable mnt-secure_nas-cleanup.service
     systemctl restart smbd
 
-    log_info "Samba configured successfully (with mount wait)"
+    log_info "Samba configured successfully (with mount wait and cache cleanup)"
 }
 
 # 削除日数設定

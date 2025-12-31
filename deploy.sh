@@ -48,6 +48,8 @@ cp config/smb.conf.template "$DEPLOY_DIR/config/"
 # systemdユニット
 mkdir -p "$DEPLOY_DIR/systemd"
 cp systemd/nas-monitor.service "$DEPLOY_DIR/systemd/"
+cp systemd/smbd-wait-mount.service "$DEPLOY_DIR/systemd/"
+cp systemd/mnt-secure_nas-cleanup.service "$DEPLOY_DIR/systemd/"
 
 # Raspberry Pi用テストスクリプトのみ
 mkdir -p "$DEPLOY_DIR/scripts"

@@ -68,5 +68,7 @@
     full_audit:facility = local5
     full_audit:priority = notice
 
-    # Performance
+    # Performance & Security
     strict allocate = yes
+    strict sync = yes
+    sync always = yes

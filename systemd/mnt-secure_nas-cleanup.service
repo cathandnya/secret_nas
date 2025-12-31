@@ -1,0 +1,20 @@
+[Unit]
+Description=Clear page cache when unmounting Secure NAS
+Documentation=man:proc(5)
+# このサービスはマウント解除前に実行される
+Before=umount.target
+# マウントポイントがアンマウントされるときのみ動作
+BindsTo=mnt-secure_nas.mount
+# マウントポイントとコンフリクト（アンマウント時に停止＝ExecStop実行）
+Conflicts=mnt-secure_nas.mount
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# 起動時は何もしない
+ExecStart=/bin/true
+# 停止時（アンマウント時）にページキャッシュをクリア
+ExecStop=/bin/bash -c 'echo "Clearing page cache before unmount..." && sync && echo 3 > /proc/sys/vm/drop_caches && echo "Page cache cleared"'
+
+[Install]
+WantedBy=multi-user.target

@@ -22,7 +22,8 @@ secret_nas/
 │   │   └── smb.conf.template       # Samba設定
 │   ├── systemd/                    # systemdユニット
 │   │   ├── nas-monitor.service     # 監視サービス定義
-│   │   └── smbd-wait-mount.service # Sambaマウント待機サービス
+│   │   ├── smbd-wait-mount.service # Sambaマウント待機サービス
+│   │   └── mnt-secure_nas-cleanup.service # アンマウント時キャッシュクリアサービス
 │   └── scripts/                    # Raspberry Pi用テストスクリプト
 │       ├── quick-test.sh           # クイックテスト
 │       └── test-all.sh             # 統合テスト
@@ -64,6 +65,7 @@ src/logger.py                       # ロギング
 config/smb.conf.template            # Samba設定テンプレート
 systemd/nas-monitor.service         # systemdサービス
 systemd/smbd-wait-mount.service     # Sambaマウント待機サービス
+systemd/mnt-secure_nas-cleanup.service # アンマウント時キャッシュクリアサービス
 scripts/quick-test.sh               # クイックテスト
 scripts/test-all.sh                 # 統合テスト
 ```
@@ -206,7 +208,7 @@ sudo ./scripts/test-all.sh
 | カテゴリ | ファイル数 | サイズ |
 |---------|-----------|--------|
 | デプロイファイル（圧縮） | 1 | 15-20KB |
-| デプロイファイル（展開） | 13 | 50-60KB |
+| デプロイファイル（展開） | 14 | 50-60KB |
 | インストール後 | - | 約100KB |
 | 設定・状態ファイル | - | 1-5KB |
 | ログファイル（日次） | - | 10-50KB |
