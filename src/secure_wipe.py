@@ -229,21 +229,37 @@ class SecureWiper:
             else:
                 self.logger.info("✓ Fstab entry successfully removed")
 
-            # systemd の自動生成マウントユニットをマスク
+            # systemd の自動生成マウントユニットを停止してマスク
             # /mnt/secure_nas -> mnt-secure_nas.mount
             mount_unit = str(self.mount_point).lstrip('/').replace('/', '-') + '.mount'
+
+            # CRITICAL: 先にユニットを停止（マスクだけでは実行中のユニットは止まらない）
+            self.logger.info(f"Stopping systemd mount unit: {mount_unit}")
+            stop_result = subprocess.run(
+                ['systemctl', 'stop', mount_unit],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10
+            )
+            if stop_result.returncode == 0:
+                self.logger.info(f"✓ Successfully stopped {mount_unit}")
+            else:
+                self.logger.warning(f"Failed to stop {mount_unit} (may not be running): {stop_result.stderr.strip()}")
+
+            # 次にマスクして将来の起動を防止
             self.logger.info(f"Masking systemd mount unit: {mount_unit}")
-            result = subprocess.run(
+            mask_result = subprocess.run(
                 ['systemctl', 'mask', mount_unit],
                 capture_output=True,
                 text=True,
                 check=False,  # ユニットが存在しない場合もあるので失敗を許容
                 timeout=10
             )
-            if result.returncode == 0:
+            if mask_result.returncode == 0:
                 self.logger.info(f"✓ Successfully masked {mount_unit}")
             else:
-                self.logger.warning(f"Failed to mask {mount_unit}: {result.stderr.strip()}")
+                self.logger.warning(f"Failed to mask {mount_unit}: {mask_result.stderr.strip()}")
 
             # systemd 設定を再読み込み
             self.logger.info("Reloading systemd daemon...")
