@@ -468,90 +468,14 @@ class SecureWiper:
             self.logger.error(f"Keyfile shred operation failed: {e}")
             return False
 
-    def erase_luks_header(self) -> bool:
-        """
-        LUKSヘッダーを削除（オプション、さらなる安全性のため）
-
-        Returns:
-            成功した場合True
-        """
-        self.logger.warning(f"Erasing LUKS header on {self.device}")
-
-        # デバイスが完全に解放されるまで待機
-        max_retries = 10
-        for attempt in range(max_retries):
-            try:
-                # デバイスマッパーが完全にクローズされているか確認
-                result = subprocess.run(
-                    ['dmsetup', 'info', self.luks_name],
-                    capture_output=True,
-                    timeout=5
-                )
-                if result.returncode != 0:
-                    # デバイスマッパーが存在しない = クローズ完了
-                    self.logger.info(f"Device mapper {self.luks_name} successfully closed")
-                    break
-                else:
-                    self.logger.warning(f"Device mapper still active, waiting... (attempt {attempt + 1}/{max_retries})")
-                    time.sleep(2)
-            except Exception as e:
-                self.logger.warning(f"Error checking device mapper: {e}")
-                time.sleep(2)
-
-        # 追加の待機（カーネルバッファフラッシュ）
-        time.sleep(3)
-
-        try:
-            # LUKSヘッダー領域（最初の16MB）をゼロで上書き
-            # LUKS2ヘッダーは通常16KBだが、安全のため16MB上書き
-            subprocess.run(
-                [
-                    'dd',
-                    'if=/dev/zero',
-                    f'of={self.device}',
-                    'bs=1M',
-                    'count=16',
-                    'conv=fsync',
-                    'oflag=direct'  # ダイレクトI/Oでキャッシュバイパス
-                ],
-                check=True,
-                timeout=60,
-                capture_output=True  # 出力を抑制
-            )
-
-            # 確実にディスクに書き込まれるまで待機
-            subprocess.run(['sync'], timeout=10)
-            time.sleep(2)
-
-            self.logger.critical(f"LUKS header on {self.device} has been erased")
-
-            # 検証: ヘッダーが本当に破壊されたか確認
-            verify_result = subprocess.run(
-                ['cryptsetup', 'isLuks', self.device],
-                capture_output=True,
-                timeout=10
-            )
-            if verify_result.returncode == 0:
-                self.logger.error(f"VERIFICATION FAILED: {self.device} is still a LUKS device!")
-                return False
-            else:
-                self.logger.info(f"Verification successful: {self.device} is no longer a LUKS device")
-                return True
-
-        except subprocess.CalledProcessError as e:
-            self.logger.error(f"LUKS header erase failed: {e}")
-            return False
-
-    def execute_secure_wipe(
-        self,
-        erase_header: bool = False,
-        shutdown_after: bool = False
-    ) -> bool:
+    def execute_secure_wipe(self, shutdown_after: bool = False) -> bool:
         """
         セキュア消去を実行
 
+        キーファイルを shred で完全削除することで、LUKS 暗号化されたデータを
+        永久に復元不可能にする。ヘッダー削除は不要（キーなしでは復号不可能）。
+
         Args:
-            erase_header: LUKSヘッダーも削除するか
             shutdown_after: 消去後にシステムシャットダウンするか
 
         Returns:
@@ -602,12 +526,9 @@ class SecureWiper:
         # ステップ4: LUKSデバイスをクローズ（失敗しても続行）
         self.close_luks_device()
 
-        # ステップ5: LUKSヘッダー削除（オプション）
-        if erase_header:
-            if not self.erase_luks_header():
-                self.logger.warning("LUKS header erase failed, but continuing to keyfile deletion")
-
-        # ステップ6: キーファイルを完全削除（最後に実行）
+        # ステップ5: キーファイルを完全削除（最後に実行）
+        # キーファイルを削除すれば、LUKS暗号化されたデータは永久に復元不可能
+        # ヘッダー削除は不要（キーなしでは復号化できない）
         # クリーンアップ時に既に削除されている可能性があるため、失敗を許容
         if self.keyfile.exists():
             if not self.shred_keyfile():
@@ -638,7 +559,6 @@ if __name__ == '__main__':
     parser.add_argument('--device', required=True, help='Device path (e.g., /dev/sda)')
     parser.add_argument('--keyfile', default='/root/.nas-keyfile', help='Keyfile path')
     parser.add_argument('--mount-point', default='/mnt/secure_nas', help='Mount point')
-    parser.add_argument('--erase-header', action='store_true', help='Also erase LUKS header')
     parser.add_argument('--dry-run', action='store_true', help='Dry run (safety checks only)')
 
     args = parser.parse_args()
@@ -669,7 +589,7 @@ if __name__ == '__main__':
                 print(f"  - {error}")
     else:
         try:
-            wiper.execute_secure_wipe(erase_header=args.erase_header)
+            wiper.execute_secure_wipe()
         except Exception as e:
             logging.error(f"Wipe operation failed: {e}")
             exit(1)

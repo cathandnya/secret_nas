@@ -208,8 +208,8 @@ class NASMonitor:
             self.logger.critical(f"Days since last access: {self.tracker.days_since_last_access()}")
 
             # 消去実行
+            # キーファイルを shred で完全削除することで、LUKS 暗号化データを復元不可能にする
             self.wiper.execute_secure_wipe(
-                erase_header=True,  # LUKSヘッダーも破壊して完全復号不可能に
                 shutdown_after=self.shutdown_after_wipe
             )
 
