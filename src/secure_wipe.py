@@ -276,12 +276,20 @@ class SecureWiper:
         self.logger.warning(f"Erasing LUKS header on {self.device}")
 
         try:
-            # LUKSヘッダー削除（復旧不可能にする）
+            # LUKSヘッダー領域（最初の16MB）をゼロで上書き
+            # LUKS2ヘッダーは通常16KBだが、安全のため16MB上書き
             subprocess.run(
-                ['cryptsetup', 'erase', self.device],
-                input=b'YES\n',  # 確認プロンプトに応答
+                [
+                    'dd',
+                    'if=/dev/zero',
+                    f'of={self.device}',
+                    'bs=1M',
+                    'count=16',
+                    'conv=fsync'
+                ],
                 check=True,
-                timeout=60
+                timeout=60,
+                capture_output=True  # 出力を抑制
             )
 
             self.logger.critical(f"LUKS header on {self.device} has been erased")
