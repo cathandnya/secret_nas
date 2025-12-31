@@ -266,8 +266,8 @@ sudo journalctl -u nas-monitor -n 20
 1. Real-time monitoring of Samba access logs
 2. Updates last access time when access detected
 3. Checks elapsed days every hour
-4. 30 days without access → keyfile completely deleted with `shred`
-5. After key deletion, USB becomes permanently undecryptable
+4. 30 days without access → keyfile and LUKS header completely destroyed
+5. After header destruction, USB is cryptographically unrecoverable (even with key backup)
 
 ### Security Constraints
 

@@ -209,7 +209,7 @@ class NASMonitor:
 
             # 消去実行
             self.wiper.execute_secure_wipe(
-                erase_header=False,  # キーファイル削除だけで十分
+                erase_header=True,  # LUKSヘッダーも破壊して完全復号不可能に
                 shutdown_after=self.shutdown_after_wipe
             )
 
