@@ -79,7 +79,7 @@ class NASMonitor:
         # パラメータ
         self.inactivity_days = self.config.get('inactivity_days', 30)
         self.warning_days = sorted(self.config.get_warning_days())
-        self.shutdown_after_wipe = self.config.get('shutdown_after_wipe', False)
+        self.reboot_after_wipe = self.config.get('reboot_after_wipe', True)
 
         # 実行フラグ
         self.running = True
@@ -210,7 +210,7 @@ class NASMonitor:
             # 消去実行
             # キーファイルを shred で完全削除することで、LUKS 暗号化データを復元不可能にする
             self.wiper.execute_secure_wipe(
-                shutdown_after=self.shutdown_after_wipe
+                reboot_after=self.reboot_after_wipe
             )
 
             self.logger.critical("Secure wipe completed successfully")

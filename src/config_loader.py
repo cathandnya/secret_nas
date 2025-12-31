@@ -22,7 +22,7 @@ class ConfigLoader:
         'warning_days': [23, 27, 29],
         'state_file': '/var/lib/nas-monitor/last_access.json',
         'notification_state_file': '/var/lib/nas-monitor/notification_state.json',
-        'shutdown_after_wipe': False,
+        'reboot_after_wipe': True,
         'notification': {
             'enabled': False,
             'method': 'email',
@@ -171,7 +171,7 @@ class ConfigLoader:
             "warning_days": [23, 27, 29],
             "state_file": "/var/lib/nas-monitor/last_access.json",
             "notification_state_file": "/var/lib/nas-monitor/notification_state.json",
-            "shutdown_after_wipe": False,
+            "reboot_after_wipe": True,
             "notification": {
                 "enabled": True,
                 "method": "email",

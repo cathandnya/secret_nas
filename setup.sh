@@ -541,7 +541,7 @@ setup_monitor() {
   "warning_days": ${WARNING_DAYS:-[23, 27, 29]},
   "state_file": "/var/lib/nas-monitor/last_access.json",
   "notification_state_file": "/var/lib/nas-monitor/notification_state.json",
-  "shutdown_after_wipe": false,
+  "reboot_after_wipe": true,
   "notification": {
     "enabled": false
   }
@@ -558,7 +558,7 @@ EOF
   "warning_days": ${WARNING_DAYS:-[23, 27, 29]},
   "state_file": "/var/lib/nas-monitor/last_access.json",
   "notification_state_file": "/var/lib/nas-monitor/notification_state.json",
-  "shutdown_after_wipe": false,
+  "reboot_after_wipe": true,
   $NOTIFICATION_CONFIG
 }
 EOF

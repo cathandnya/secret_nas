@@ -627,7 +627,7 @@ sudo tee /etc/nas-monitor/config.test.json > /dev/null <<'EOF'
   "warning_days": [3, 4],
   "state_file": "/var/lib/nas-monitor/last_access.json",
   "notification_state_file": "/var/lib/nas-monitor/notification_state.json",
-  "shutdown_after_wipe": false,
+  "reboot_after_wipe": true,
   "notification": {
     "enabled": true,
     "method": "email",

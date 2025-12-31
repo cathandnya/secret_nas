@@ -494,7 +494,7 @@ class SecureWiper:
             self.logger.error(f"Keyfile shred operation failed: {e}")
             return False
 
-    def execute_secure_wipe(self, shutdown_after: bool = False) -> bool:
+    def execute_secure_wipe(self, reboot_after: bool = False) -> bool:
         """
         セキュア消去を実行
 
@@ -502,7 +502,7 @@ class SecureWiper:
         永久に復元不可能にする。ヘッダー削除は不要（キーなしでは復号不可能）。
 
         Args:
-            shutdown_after: 消去後にシステムシャットダウンするか
+            reboot_after: 消去後にシステムを再起動するか
 
         Returns:
             成功した場合True
@@ -568,11 +568,12 @@ class SecureWiper:
         self.logger.critical("Data is now PERMANENTLY UNRECOVERABLE")
         self.logger.critical("=" * 60)
 
-        # システムシャットダウン（オプション）
-        if shutdown_after:
-            self.logger.critical("Shutting down system in 10 seconds...")
+        # システム再起動（オプション）
+        if reboot_after:
+            self.logger.critical("Rebooting system in 10 seconds...")
+            self.logger.critical("This will unmask the mount unit and restore normal operation")
             time.sleep(10)
-            subprocess.run(['shutdown', '-h', 'now'])
+            subprocess.run(['reboot'])
 
         return True
 
