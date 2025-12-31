@@ -545,6 +545,11 @@ EOF
     # systemd リロード
     systemctl daemon-reload
 
+    # 古い状態ファイルをクリーンアップ（既存インストールからの残存ファイルを削除）
+    log_info "Cleaning up old state files from previous installations..."
+    rm -f /var/lib/nas-monitor/last_access.json
+    rm -f /var/lib/nas-monitor/notification_state.json
+
     # サービス有効化・起動
     systemctl enable nas-monitor
     systemctl start nas-monitor
