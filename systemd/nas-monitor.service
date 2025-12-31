@@ -14,8 +14,8 @@ WorkingDirectory=/opt/nas-monitor
 # Main process
 ExecStart=/usr/bin/python3 /opt/nas-monitor/src/monitor.py --config /etc/nas-monitor/config.json --log-level INFO
 
-# Restart policy
-Restart=always
+# Restart policy (only on failure, not on normal exit)
+Restart=on-failure
 RestartSec=10
 
 # Resource limits (optimized for Pi Zero WH)

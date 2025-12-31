@@ -44,6 +44,18 @@ class NASMonitor:
         # ロガー取得
         self.logger = logging.getLogger(__name__)
 
+        # キーファイルが存在しない場合は削除済みとみなす
+        keyfile_path = Path(self.config.get('keyfile'))
+        if not keyfile_path.exists():
+            self.logger.info("=" * 70)
+            self.logger.info("Keyfile not found - data has already been wiped")
+            self.logger.info("Monitor service will exit normally")
+            self.logger.info("=" * 70)
+            self.already_wiped = True
+            return
+        else:
+            self.already_wiped = False
+
         # アクセストラッカー
         self.tracker = AccessTracker(
             state_file=self.config.get('state_file')
@@ -239,6 +251,10 @@ class NASMonitor:
 
     def run(self):
         """メインループ"""
+        # 既に削除済みの場合は何もせず正常終了
+        if self.already_wiped:
+            return
+
         self.logger.info("=" * 70)
         self.logger.info("NAS Monitor starting...")
         self.logger.info(f"Inactivity threshold: {self.inactivity_days} days")
