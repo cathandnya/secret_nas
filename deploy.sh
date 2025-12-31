@@ -55,6 +55,7 @@ cp systemd/mnt-secure_nas-cleanup.service "$DEPLOY_DIR/systemd/"
 mkdir -p "$DEPLOY_DIR/scripts"
 cp scripts/quick-test.sh "$DEPLOY_DIR/scripts/"
 cp scripts/test-all.sh "$DEPLOY_DIR/scripts/"
+cp scripts/force-wipe-test.sh "$DEPLOY_DIR/scripts/"
 
 # ライセンスやドキュメント（もしあれば）
 if [ -f "LICENSE" ]; then

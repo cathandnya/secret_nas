@@ -373,6 +373,26 @@ Or manually reset:
 sudo systemctl restart nas-monitor
 ```
 
+### Test Wipe Behavior (Development/Testing)
+
+Set last access date to the past to immediately test wipe behavior:
+
+```bash
+# Set to 31 days ago (default 30 days triggers wipe)
+sudo ./scripts/force-wipe-test.sh 31
+
+# Restart service to trigger immediate check
+sudo systemctl restart nas-monitor
+
+# Monitor logs in real-time
+sudo journalctl -u nas-monitor -f
+```
+
+**Warning**:
+- This script will actually delete data
+- After testing, re-setup USB with `./scripts/re-encrypt-usb.sh`
+- Do not use in production environment
+
 ### Manual Data Erasure
 
 ```bash

@@ -26,7 +26,8 @@ secret_nas/
 │   │   └── mnt-secure_nas-cleanup.service # アンマウント時キャッシュクリアサービス
 │   └── scripts/                    # Raspberry Pi用テストスクリプト
 │       ├── quick-test.sh           # クイックテスト
-│       └── test-all.sh             # 統合テスト
+│       ├── test-all.sh             # 統合テスト
+│       └── force-wipe-test.sh      # 強制削除テスト（開発用）
 │
 ├── 🛠️ 開発・テスト用ファイル（ローカル環境のみ）
 │   ├── deploy.sh                   # デプロイパッケージ作成スクリプト
@@ -68,6 +69,7 @@ systemd/smbd-wait-mount.service     # Sambaマウント待機サービス
 systemd/mnt-secure_nas-cleanup.service # アンマウント時キャッシュクリアサービス
 scripts/quick-test.sh               # クイックテスト
 scripts/test-all.sh                 # 統合テスト
+scripts/force-wipe-test.sh          # 強制削除テスト（開発用）
 ```
 
 ### デプロイサイズ
@@ -208,7 +210,7 @@ sudo ./scripts/test-all.sh
 | カテゴリ | ファイル数 | サイズ |
 |---------|-----------|--------|
 | デプロイファイル（圧縮） | 1 | 15-20KB |
-| デプロイファイル（展開） | 14 | 50-60KB |
+| デプロイファイル（展開） | 15 | 50-60KB |
 | インストール後 | - | 約100KB |
 | 設定・状態ファイル | - | 1-5KB |
 | ログファイル（日次） | - | 10-50KB |

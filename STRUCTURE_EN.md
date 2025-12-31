@@ -26,7 +26,8 @@ secret_nas/
 │   │   └── mnt-secure_nas-cleanup.service # Unmount cache cleanup service
 │   └── scripts/                    # Test scripts for Raspberry Pi
 │       ├── quick-test.sh           # Quick test
-│       └── test-all.sh             # Integration test
+│       ├── test-all.sh             # Integration test
+│       └── force-wipe-test.sh      # Force wipe test (development)
 │
 ├── 🛠️ Development/test files (Local environment only)
 │   ├── deploy.sh                   # Deploy package creation script
@@ -68,6 +69,7 @@ systemd/smbd-wait-mount.service     # Samba mount wait service
 systemd/mnt-secure_nas-cleanup.service # Unmount cache cleanup service
 scripts/quick-test.sh               # Quick test
 scripts/test-all.sh                 # Integration test
+scripts/force-wipe-test.sh          # Force wipe test (development)
 ```
 
 ### Deployment Size
@@ -208,7 +210,7 @@ After setup, the following files are created on Raspberry Pi:
 | Category | File Count | Size |
 |----------|-----------|------|
 | Deploy files (compressed) | 1 | 15-20KB |
-| Deploy files (extracted) | 14 | 50-60KB |
+| Deploy files (extracted) | 15 | 50-60KB |
 | After installation | - | ~100KB |
 | Config/state files | - | 1-5KB |
 | Log files (daily) | - | 10-50KB |

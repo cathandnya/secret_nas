@@ -1060,6 +1060,26 @@ NASに任意のファイルをアクセスするだけで自動的にリセッ�
 sudo systemctl restart nas-monitor
 ```
 
+### 削除動作のテスト（開発・検証用）
+
+最終アクセス日を過去に設定して、削除動作を即座にテストできます：
+
+```bash
+# 31日前に設定（デフォルト30日で削除）
+sudo ./scripts/force-wipe-test.sh 31
+
+# サービスを再起動して即座にチェック
+sudo systemctl restart nas-monitor
+
+# ログをリアルタイム監視
+sudo journalctl -u nas-monitor -f
+```
+
+**注意**:
+- このスクリプトは実際にデータを削除します
+- テスト後は `./scripts/re-encrypt-usb.sh` でUSBを再セットアップしてください
+- 本番環境では使用しないでください
+
 ### 手動でデータ消去
 
 ```bash
