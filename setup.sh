@@ -296,16 +296,16 @@ setup_storage() {
     log_info "Filesystem UUID: $FS_UUID"
 
     # /etc/crypttab設定（起動時自動復号）
-    if ! grep -q "$LUKS_NAME" /etc/crypttab 2>/dev/null; then
-        echo "$LUKS_NAME UUID=$LUKS_UUID $KEYFILE luks,nofail" >> /etc/crypttab
-        log_info "Added entry to /etc/crypttab"
-    fi
+    # 既存のエントリを削除してから新しいUUIDで追加（再セットアップ時のUUID不一致を防ぐ）
+    sed -i "/^$LUKS_NAME /d" /etc/crypttab
+    echo "$LUKS_NAME UUID=$LUKS_UUID $KEYFILE luks,nofail" >> /etc/crypttab
+    log_info "Updated /etc/crypttab with new UUID"
 
     # /etc/fstab設定
-    if ! grep -q "$MOUNT_POINT" /etc/fstab 2>/dev/null; then
-        echo "UUID=$FS_UUID $MOUNT_POINT ext4 defaults,nofail 0 2" >> /etc/fstab
-        log_info "Added entry to /etc/fstab"
-    fi
+    # 既存のマウントポイントエントリを削除してから新しいUUIDで追加
+    sed -i "\|$MOUNT_POINT|d" /etc/fstab
+    echo "UUID=$FS_UUID $MOUNT_POINT ext4 defaults,nofail 0 2" >> /etc/fstab
+    log_info "Updated /etc/fstab with new UUID"
 
     # マウント
     mount "$MOUNT_POINT"
