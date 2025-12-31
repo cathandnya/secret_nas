@@ -551,7 +551,7 @@ class SecureWiper:
         if reboot_after:
             self.logger.critical("Rebooting system now...")
             self.logger.critical("This will unmask the mount unit and restore normal operation")
-            subprocess.run(['reboot'])
+            subprocess.run(['systemctl', 'reboot'])
 
         return True
 
