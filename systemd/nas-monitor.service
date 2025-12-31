@@ -26,7 +26,7 @@ CPUQuota=20%
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=true
+ProtectHome=read-only
 ReadWritePaths=/var/lib/nas-monitor /var/log /mnt/secure_nas /root
 
 # Logging
