@@ -166,6 +166,22 @@ class SecureWiper:
             self.logger.warning(f"Failed to stop Samba (continuing anyway): {e}")
             return True  # 失敗しても続行
 
+    def is_mounted(self) -> bool:
+        """
+        マウントポイントがマウントされているか確認
+
+        Returns:
+            マウントされている場合True
+        """
+        try:
+            result = subprocess.run(
+                ['mountpoint', '-q', str(self.mount_point)],
+                timeout=5
+            )
+            return result.returncode == 0
+        except Exception:
+            return False
+
     def unmount_filesystem(self) -> bool:
         """
         ファイルシステムをアンマウント（強制）
@@ -175,6 +191,11 @@ class SecureWiper:
         """
         self.logger.info(f"Unmounting {self.mount_point}")
 
+        # 既にアンマウントされている場合
+        if not self.is_mounted():
+            self.logger.info(f"{self.mount_point} is already unmounted")
+            return True
+
         try:
             # 通常のアンマウントを試行
             subprocess.run(
@@ -182,26 +203,86 @@ class SecureWiper:
                 check=True,
                 timeout=30
             )
-            self.logger.info(f"Successfully unmounted {self.mount_point}")
             time.sleep(1)
-            return True
+
+            # 検証：本当にアンマウントされたか確認
+            if not self.is_mounted():
+                self.logger.info(f"Successfully unmounted {self.mount_point}")
+                return True
+            else:
+                self.logger.warning("umount command succeeded but mount point is still mounted")
 
         except subprocess.CalledProcessError:
-            # 通常のアンマウントが失敗したら、強制アンマウント（lazy unmount）
-            self.logger.warning("Normal unmount failed, trying lazy unmount")
-            try:
-                subprocess.run(
-                    ['umount', '-l', str(self.mount_point)],
-                    check=True,
-                    timeout=30
-                )
+            self.logger.warning("Normal unmount failed, trying forceful unmount")
+
+        # 強制アンマウント試行1: プロセスをkillしてから通常アンマウント
+        try:
+            self.logger.info("Killing processes using mount point...")
+            subprocess.run(
+                ['fuser', '-km', str(self.mount_point)],
+                check=False,  # fuserが何も見つからなくてもOK
+                timeout=10,
+                capture_output=True
+            )
+            time.sleep(2)
+
+            subprocess.run(
+                ['umount', str(self.mount_point)],
+                check=True,
+                timeout=30
+            )
+            time.sleep(1)
+
+            if not self.is_mounted():
+                self.logger.info(f"Successfully unmounted {self.mount_point} (after killing processes)")
+                return True
+
+        except subprocess.CalledProcessError:
+            self.logger.warning("Forceful unmount after kill failed, trying lazy unmount")
+
+        # 強制アンマウント試行2: lazy unmount (-l)
+        try:
+            subprocess.run(
+                ['umount', '-l', str(self.mount_point)],
+                check=True,
+                timeout=30
+            )
+            time.sleep(2)
+
+            if not self.is_mounted():
                 self.logger.info(f"Successfully unmounted {self.mount_point} (lazy)")
-                time.sleep(1)
                 return True
-            except subprocess.CalledProcessError as e:
-                self.logger.error(f"Failed to unmount even with -l flag: {e}")
-                # アンマウント失敗でも続行（キーファイル削除が重要）
+            else:
+                self.logger.error("Lazy unmount succeeded but mount point still reports as mounted")
+
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Failed to unmount even with -l flag: {e}")
+
+        # 強制アンマウント試行3: 強制フラグ (-f) - NFSなどで有効
+        try:
+            subprocess.run(
+                ['umount', '-f', str(self.mount_point)],
+                check=True,
+                timeout=30
+            )
+            time.sleep(2)
+
+            if not self.is_mounted():
+                self.logger.info(f"Successfully unmounted {self.mount_point} (force)")
                 return True
+
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Failed to unmount with -f flag: {e}")
+
+        # 最終確認
+        if not self.is_mounted():
+            self.logger.warning("Mount point is now unmounted (by unknown means)")
+            return True
+
+        # 完全に失敗
+        self.logger.critical(f"CRITICAL: Failed to unmount {self.mount_point}")
+        self.logger.critical("Device is still mounted - ghost files cannot be safely cleaned")
+        return False
 
     def close_luks_device(self) -> bool:
         """
@@ -373,35 +454,41 @@ class SecureWiper:
         self.stop_samba()
 
         # ステップ2: ファイルシステムをアンマウント（強制）
-        self.unmount_filesystem()
+        unmount_success = self.unmount_filesystem()
 
-        # ステップ3: LUKSデバイスをクローズ（失敗しても続行）
+        # ステップ3: マウントポイント内のゴーストファイルを削除
+        # （アンマウント後にSDカード上に残った平文ファイルを削除）
+        # アンマウント成功時のみ実行（マウント中のファイル削除は危険）
+        if unmount_success:
+            try:
+                import glob
+                ghost_files = glob.glob(f"{self.mount_point}/*") + glob.glob(f"{self.mount_point}/.[!.]*")
+                if ghost_files:
+                    self.logger.warning(f"Cleaning up {len(ghost_files)} ghost files in unmounted mount point")
+                    subprocess.run(
+                        ['rm', '-rf'] + ghost_files,
+                        check=True,
+                        timeout=30
+                    )
+                    self.logger.info("Ghost files removed from mount point")
+                else:
+                    self.logger.info("No ghost files found in mount point")
+            except Exception as e:
+                self.logger.warning(f"Failed to clean ghost files (not critical): {e}")
+        else:
+            self.logger.critical("SKIPPING ghost file cleanup - mount point is still mounted (unsafe)")
+
+        # ステップ4: LUKSデバイスをクローズ（失敗しても続行）
         self.close_luks_device()
 
-        # ステップ4: キーファイルを完全削除
+        # ステップ5: キーファイルを完全削除
         if not self.shred_keyfile():
             raise RuntimeError("Failed to shred keyfile")
 
-        # ステップ5: LUKSヘッダー削除（オプション）
+        # ステップ6: LUKSヘッダー削除（オプション）
         if erase_header:
             if not self.erase_luks_header():
                 self.logger.warning("LUKS header erase failed, but keyfile is deleted")
-
-        # ステップ6: マウントポイント内のゴーストファイルを削除
-        # （アンマウント後にSDカード上に残った平文ファイルを削除）
-        try:
-            import glob
-            ghost_files = glob.glob(f"{self.mount_point}/*") + glob.glob(f"{self.mount_point}/.[!.]*")
-            if ghost_files:
-                self.logger.warning(f"Cleaning up {len(ghost_files)} ghost files in unmounted mount point")
-                subprocess.run(
-                    ['rm', '-rf'] + ghost_files,
-                    check=True,
-                    timeout=30
-                )
-                self.logger.info("Ghost files removed from mount point")
-        except Exception as e:
-            self.logger.warning(f"Failed to clean ghost files (not critical): {e}")
 
         self.logger.critical("=" * 60)
         self.logger.critical("SECURE WIPE COMPLETED SUCCESSFULLY")

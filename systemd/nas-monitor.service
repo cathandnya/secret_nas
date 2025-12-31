@@ -3,7 +3,7 @@ Description=Secret NAS Access Monitor and Auto-Wipe Service
 Documentation=https://github.com/cathandnya/secret_nas
 After=network.target network-online.target smbd.service
 Wants=network-online.target
-Requires=smbd.service
+# Requires=smbd.service removed - nas-monitor must continue running during wipe even when Samba is stopped
 
 [Service]
 Type=simple
