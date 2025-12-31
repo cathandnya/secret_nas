@@ -352,6 +352,16 @@ class SecureWiper:
             if e.stderr:
                 self.logger.warning(f"  umount stderr: {e.stderr.strip()}")
 
+            # CRITICAL: umount が失敗しても、実際にアンマウントされているか確認
+            # systemctl stop が既にアンマウントした場合、umount は "not mounted" で失敗するが
+            # これは成功とみなすべき（fuser -km でシステムをkillしてはいけない）
+            if not self.is_mounted():
+                self.logger.info("✓ Filesystem is already unmounted (likely by systemctl stop)")
+                self.logger.info("Skipping forced unmount attempts to avoid killing system processes")
+                return True
+
+            self.logger.warning("Filesystem is still mounted - proceeding to forced unmount")
+
         # 強制アンマウント試行1: プロセスをkillしてから通常アンマウント
         try:
             self.logger.info("Killing processes using mount point...")
