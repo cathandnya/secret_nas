@@ -80,9 +80,10 @@ fi
 echo ""
 log_step "2. 最終アクセス日を $DAYS_AGO 日前に設定..."
 
-# 過去の日時を計算（ISO 8601形式）
-PAST_DATE=$(date -u -d "$DAYS_AGO days ago" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || \
-            date -u -v-${DAYS_AGO}d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)
+# 過去の日時を計算（ISO 8601形式、タイムゾーン情報なし = offset-naive）
+# access_tracker.py が datetime.now() (offset-naive) と比較するため、Zサフィックスは付けない
+PAST_DATE=$(date -d "$DAYS_AGO days ago" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null || \
+            date -v-${DAYS_AGO}d '+%Y-%m-%dT%H:%M:%S' 2>/dev/null)
 
 if [ -z "$PAST_DATE" ]; then
     log_error "日付計算に失敗しました"
