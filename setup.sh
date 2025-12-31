@@ -559,7 +559,11 @@ EOF
 EOF
     fi
 
-    log_info "Configuration saved to /etc/nas-monitor/config.json"
+    # 設定ファイルの権限を厳格に設定（SMTPパスワードが含まれる可能性があるため）
+    chmod 600 /etc/nas-monitor/config.json
+    chown root:root /etc/nas-monitor/config.json
+
+    log_info "Configuration saved to /etc/nas-monitor/config.json (permissions: 600)"
 
     # systemdサービスをインストール
     cp "$SCRIPT_DIR/systemd/nas-monitor.service" /etc/systemd/system/
