@@ -27,7 +27,8 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 # ProtectHome disabled to allow keyfile deletion in /root
-ReadWritePaths=/var/lib/nas-monitor /var/log /mnt/secure_nas
+# /etc write access needed to remove fstab entry during wipe
+ReadWritePaths=/var/lib/nas-monitor /var/log /mnt/secure_nas /etc/fstab /root
 
 # Logging
 StandardOutput=journal
