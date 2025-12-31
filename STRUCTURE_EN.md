@@ -21,7 +21,8 @@ secret_nas/
 │   ├── config/                     # Configuration templates
 │   │   └── smb.conf.template       # Samba configuration
 │   ├── systemd/                    # systemd units
-│   │   └── nas-monitor.service     # Monitor service definition
+│   │   ├── nas-monitor.service     # Monitor service definition
+│   │   └── smbd-wait-mount.service # Samba mount wait service
 │   └── scripts/                    # Test scripts for Raspberry Pi
 │       ├── quick-test.sh           # Quick test
 │       └── test-all.sh             # Integration test
@@ -62,6 +63,7 @@ src/config_loader.py                # Configuration loader
 src/logger.py                       # Logging
 config/smb.conf.template            # Samba configuration template
 systemd/nas-monitor.service         # systemd service
+systemd/smbd-wait-mount.service     # Samba mount wait service
 scripts/quick-test.sh               # Quick test
 scripts/test-all.sh                 # Integration test
 ```

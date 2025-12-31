@@ -282,6 +282,12 @@ setup_storage() {
         rm -rf "$MOUNT_POINT"/.[!.]*  # 隠しファイルも削除（. と .. は除外）
     fi
 
+    # マウントポイントを読み取り専用に設定（ゴーストファイル防止）
+    # マウント後はマウントされたファイルシステムの権限が使われる
+    chown root:root "$MOUNT_POINT"
+    chmod 555 "$MOUNT_POINT"
+    log_info "Mount point set to read-only (will be overridden after mount)"
+
     # UUIDを取得
     LUKS_UUID=$(cryptsetup luksUUID "$USB_DEVICE")
     FS_UUID=$(blkid -s UUID -o value "/dev/mapper/$LUKS_NAME")
@@ -359,13 +365,21 @@ EOF
     touch /var/log/samba/audit.log
     chmod 644 /var/log/samba/audit.log
 
+    # systemdサービス設定（マウント待機版を使用）
+    # デフォルトのsmbd.serviceを無効化
+    systemctl disable smbd 2>/dev/null || true
+    systemctl stop smbd 2>/dev/null || true
+
+    # マウント待機版のsmbd.serviceをインストール
+    cp "$SCRIPT_DIR/systemd/smbd-wait-mount.service" /etc/systemd/system/smbd.service
+
     # サービス再起動
     systemctl daemon-reload
     systemctl restart rsyslog
-    systemctl restart smbd
     systemctl enable smbd
+    systemctl restart smbd
 
-    log_info "Samba configured successfully"
+    log_info "Samba configured successfully (with mount wait)"
 }
 
 # 削除日数設定

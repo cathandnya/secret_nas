@@ -51,6 +51,17 @@ umount "$MOUNT_POINT" 2>/dev/null || true
 cryptsetup close "$LUKS_NAME" 2>/dev/null || true
 log_info "✓ Unmounted"
 
+# ステップ1.5: SDカード上のゴーストファイルを削除
+log_info "Step 1.5: Cleaning up ghost files on SD card..."
+if [ "$(ls -A "$MOUNT_POINT" 2>/dev/null)" ]; then
+    log_warn "Found ghost files in unmounted mount point, removing..."
+    rm -rf "$MOUNT_POINT"/*
+    rm -rf "$MOUNT_POINT"/.[!.]*  # 隠しファイルも削除（. と .. は除外）
+    log_info "✓ Ghost files removed"
+else
+    log_info "✓ No ghost files found"
+fi
+
 # ステップ2: デバイス確認
 log_info "Step 2: Checking device..."
 if [ ! -b "$USB_DEVICE" ]; then

@@ -21,7 +21,8 @@ secret_nas/
 │   ├── config/                     # 設定テンプレート
 │   │   └── smb.conf.template       # Samba設定
 │   ├── systemd/                    # systemdユニット
-│   │   └── nas-monitor.service     # 監視サービス定義
+│   │   ├── nas-monitor.service     # 監視サービス定義
+│   │   └── smbd-wait-mount.service # Sambaマウント待機サービス
 │   └── scripts/                    # Raspberry Pi用テストスクリプト
 │       ├── quick-test.sh           # クイックテスト
 │       └── test-all.sh             # 統合テスト
@@ -62,6 +63,7 @@ src/config_loader.py                # 設定読み込み
 src/logger.py                       # ロギング
 config/smb.conf.template            # Samba設定テンプレート
 systemd/nas-monitor.service         # systemdサービス
+systemd/smbd-wait-mount.service     # Sambaマウント待機サービス
 scripts/quick-test.sh               # クイックテスト
 scripts/test-all.sh                 # 統合テスト
 ```

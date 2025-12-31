@@ -49,6 +49,10 @@
     # Check if path is actually a mount point before allowing access
     preexec = /bin/bash -c "mountpoint -q /mnt/secure_nas || exit 1"
 
+    # Additional safety: Check mount status on disconnect
+    # If USB was unmounted during session, prevent reconnection
+    root_postexec = /bin/bash -c "mountpoint -q /mnt/secure_nas || systemctl stop smbd"
+
     # File Permissions
     create mask = 0660
     directory mask = 0770

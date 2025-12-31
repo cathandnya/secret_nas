@@ -1,0 +1,22 @@
+[Unit]
+Description=Samba SMB Daemon (Wait for encrypted USB mount)
+Documentation=man:smbd(8) man:samba(7) man:smb.conf(5)
+After=network.target network-online.target mnt-secure_nas.mount
+Wants=network-online.target
+# Only start Samba after the encrypted USB is mounted
+Requires=mnt-secure_nas.mount
+BindsTo=mnt-secure_nas.mount
+# Verify mount point exists as additional safety check
+ConditionPathIsMountPoint=/mnt/secure_nas
+
+[Service]
+Type=notify
+PIDFile=/run/samba/smbd.pid
+LimitNOFILE=16384
+EnvironmentFile=-/etc/default/samba
+ExecStart=/usr/sbin/smbd --foreground --no-process-group $SMBDOPTIONS
+ExecReload=/bin/kill -HUP $MAINPID
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target
