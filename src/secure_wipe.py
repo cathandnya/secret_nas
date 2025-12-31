@@ -275,6 +275,30 @@ class SecureWiper:
         """
         self.logger.warning(f"Erasing LUKS header on {self.device}")
 
+        # デバイスが完全に解放されるまで待機
+        max_retries = 10
+        for attempt in range(max_retries):
+            try:
+                # デバイスマッパーが完全にクローズされているか確認
+                result = subprocess.run(
+                    ['dmsetup', 'info', self.luks_name],
+                    capture_output=True,
+                    timeout=5
+                )
+                if result.returncode != 0:
+                    # デバイスマッパーが存在しない = クローズ完了
+                    self.logger.info(f"Device mapper {self.luks_name} successfully closed")
+                    break
+                else:
+                    self.logger.warning(f"Device mapper still active, waiting... (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(2)
+            except Exception as e:
+                self.logger.warning(f"Error checking device mapper: {e}")
+                time.sleep(2)
+
+        # 追加の待機（カーネルバッファフラッシュ）
+        time.sleep(3)
+
         try:
             # LUKSヘッダー領域（最初の16MB）をゼロで上書き
             # LUKS2ヘッダーは通常16KBだが、安全のため16MB上書き
@@ -285,15 +309,32 @@ class SecureWiper:
                     f'of={self.device}',
                     'bs=1M',
                     'count=16',
-                    'conv=fsync'
+                    'conv=fsync',
+                    'oflag=direct'  # ダイレクトI/Oでキャッシュバイパス
                 ],
                 check=True,
                 timeout=60,
                 capture_output=True  # 出力を抑制
             )
 
+            # 確実にディスクに書き込まれるまで待機
+            subprocess.run(['sync'], timeout=10)
+            time.sleep(2)
+
             self.logger.critical(f"LUKS header on {self.device} has been erased")
-            return True
+
+            # 検証: ヘッダーが本当に破壊されたか確認
+            verify_result = subprocess.run(
+                ['cryptsetup', 'isLuks', self.device],
+                capture_output=True,
+                timeout=10
+            )
+            if verify_result.returncode == 0:
+                self.logger.error(f"VERIFICATION FAILED: {self.device} is still a LUKS device!")
+                return False
+            else:
+                self.logger.info(f"Verification successful: {self.device} is no longer a LUKS device")
+                return True
 
         except subprocess.CalledProcessError as e:
             self.logger.error(f"LUKS header erase failed: {e}")
