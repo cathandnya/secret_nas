@@ -134,25 +134,35 @@ else
 fi
 
 echo ""
-log_step "4. 次のアクション..."
+log_step "4. nas-monitor サービスを再起動して削除テスト実行..."
+
+log_info "サービスを再起動します（削除処理が即座に実行されます）"
+systemctl restart nas-monitor
+
+sleep 2
+
+log_info "削除処理のログを確認中..."
+echo ""
+journalctl -u nas-monitor -n 50 --no-pager | grep -E "WIPE|delete|shred|LUKS" || log_warn "削除ログがまだ出力されていません"
 
 echo ""
-log_info "【即座に削除をテストする場合】"
-echo "  1. nas-monitor サービスを再起動:"
-echo -e "     ${YELLOW}sudo systemctl restart nas-monitor${NC}"
+log_step "5. 削除処理の監視..."
+
 echo ""
-echo "  2. ログをリアルタイム監視:"
+log_info "【リアルタイムログ監視】"
+echo "  以下のコマンドでログをリアルタイム監視できます:"
 echo -e "     ${YELLOW}sudo journalctl -u nas-monitor -f${NC}"
 echo ""
 
-log_info "【削除を中止する場合】"
-echo "  1. Sambaにアクセスして最終アクセス日を更新"
-echo "  2. または手動で状態ファイルを削除:"
+log_info "【削除を中止したい場合】"
+echo "  Sambaにアクセスして最終アクセス日を更新するか、"
+echo "  状態ファイルを削除してサービス再起動:"
 echo -e "     ${YELLOW}sudo rm -f $STATE_FILE${NC}"
+echo -e "     ${YELLOW}sudo systemctl restart nas-monitor${NC}"
 echo ""
 
 log_info "【テスト完了後のクリーンアップ】"
-echo "  テスト後は以下を実行してUSBを再セットアップ:"
+echo "  削除後は以下を実行してUSBを再セットアップ:"
 echo -e "     ${YELLOW}sudo ./scripts/re-encrypt-usb.sh${NC}"
 echo ""
 
