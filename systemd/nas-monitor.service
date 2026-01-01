@@ -18,7 +18,7 @@ ExecStart=/usr/bin/python3 /opt/nas-monitor/src/monitor.py --config /etc/nas-mon
 Restart=on-failure
 RestartSec=10
 
-# Resource limits (optimized for Pi Zero WH)
+# Resource limits (optimized for Raspberry Pi)
 MemoryMax=50M
 CPUQuota=20%
 

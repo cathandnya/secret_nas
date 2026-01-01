@@ -30,7 +30,7 @@ Secret NAS is a network storage system that automatically and completely erases 
 
 ### Hardware
 
-- Raspberry Pi Zero WH (or other Raspberry Pi models)
+- Raspberry Pi (Zero W/WH, 3, 4, 5, etc.)
 - microSD card (16GB+ recommended)
 - USB external storage (USB HDD/SSD/flash drive)
 - Power adapter
@@ -451,9 +451,9 @@ sudo vi /etc/fstab
 sudo vi /etc/crypttab
 ```
 
-## Performance Optimization (Pi Zero WH)
+## Performance Optimization
 
-Secret NAS is optimized to run on Raspberry Pi Zero WH's limited resources (512MB RAM, 1GHz CPU):
+Secret NAS is optimized to run on Raspberry Pi's limited resources:
 
 - Samba max connections: 10
 - Monitor daemon memory limit: 50MB

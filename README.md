@@ -30,7 +30,7 @@ Secret NASは、一定期間（デフォルト30日間）アクセスがない�
 
 ### ハードウェア
 
-- Raspberry Pi Zero WH（または他のRaspberry Pi）
+- Raspberry Pi (Zero W/WH, 3, 4, 5 など)
 - microSDカード（16GB以上推奨）
 - USB外付けストレージ（USB HDD/SSD/メモリ）
 - 電源アダプタ
@@ -1138,9 +1138,9 @@ sudo vi /etc/fstab
 sudo vi /etc/crypttab
 ```
 
-## パフォーマンス最適化（Pi Zero WH）
+## パフォーマンス最適化
 
-Secret NASは Raspberry Pi Zero WH の限られたリソース（512MB RAM、1GHz CPU）でも動作するよう最適化されています：
+Secret NASは Raspberry Pi の限られたリソースでも動作するよう最適化されています：
 
 - Samba最大接続数: 10
 - 監視デーモンメモリ制限: 50MB

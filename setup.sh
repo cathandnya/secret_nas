@@ -2,7 +2,7 @@
 #
 # Secret NAS Setup Script
 #
-# Raspberry Pi Zero WH向けのセキュアなNASシステムをセットアップする。
+# Raspberry Pi向けのセキュアなNASシステムをセットアップする。
 # USB外付けストレージをLUKS暗号化し、30日間アクセスがなければ
 # 自動的にデータを消去する。
 #
@@ -100,7 +100,7 @@ check_hardware() {
         log_info "Detected: $model"
 
         if [[ ! "$model" =~ "Raspberry Pi" ]]; then
-            log_warn "This script is optimized for Raspberry Pi Zero WH"
+            log_warn "This script is optimized for Raspberry Pi"
             read -p "Continue anyway? (y/N): " -n 1 -r
             echo
             if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -598,7 +598,7 @@ main() {
     echo ""
     echo "=========================================="
     echo "  Secret NAS Setup"
-    echo "  Raspberry Pi Zero WH"
+    echo "  Raspberry Pi"
     echo "=========================================="
     echo ""
 

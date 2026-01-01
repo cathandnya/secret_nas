@@ -1,5 +1,5 @@
 # Samba Configuration for Secret NAS
-# Optimized for Raspberry Pi Zero WH
+# Optimized for Raspberry Pi
 
 [global]
     # Server Information
@@ -12,7 +12,7 @@
     map to guest = never
     server min protocol = SMB2
 
-    # Performance Optimization for Pi Zero WH (512MB RAM, 1GHz CPU)
+    # Performance Optimization for Raspberry Pi
     read raw = yes
     write raw = yes
     max xmit = 65535

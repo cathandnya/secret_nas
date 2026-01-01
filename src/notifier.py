@@ -150,7 +150,7 @@ Secret NAS システムから自動通知です。
 このメールはSecret NASシステムから自動送信されています。
 返信しないでください。
 
-Secret NAS - Raspberry Pi Zero WH
+Secret NAS - Raspberry Pi
 """
         return message
 
@@ -265,7 +265,7 @@ Secret NASシステムから自動通知です。
 このメールはSecret NASシステムから自動送信されています。
 返信しないでください。
 
-Secret NAS - Raspberry Pi Zero WH
+Secret NAS - Raspberry Pi
 """
 
         # メール送信
@@ -320,7 +320,7 @@ NASへのアクセスを検出したため、削除予定をキャンセルし�
 このメールはSecret NASシステムから自動送信されています。
 返信しないでください。
 
-Secret NAS - Raspberry Pi Zero WH
+Secret NAS - Raspberry Pi
 """
 
         # メール送信
