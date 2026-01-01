@@ -510,49 +510,52 @@ class SecureWiper:
         else:
             self.logger.warning(f"Keyfile {self.keyfile} already deleted - skipping shred")
 
+        self.logger.critical("=" * 60)
         self.logger.critical("KEYFILE DELETED - Data is now PERMANENTLY UNRECOVERABLE")
-
-        # ステップ2: Sambaサービスを停止
-        self.stop_samba()
-
-        # ステップ3: ファイルシステムをアンマウント（強制）
-        unmount_success = self.unmount_filesystem()
-
-        # ステップ4: マウントポイント内のゴーストファイルを削除
-        # （アンマウント後にSDカード上に残った平文ファイルを削除）
-        # アンマウント成功時のみ実行（マウント中のファイル削除は危険）
-        if unmount_success:
-            try:
-                import glob
-                ghost_files = glob.glob(f"{self.mount_point}/*") + glob.glob(f"{self.mount_point}/.[!.]*")
-                if ghost_files:
-                    self.logger.warning(f"Cleaning up {len(ghost_files)} ghost files in unmounted mount point")
-                    subprocess.run(
-                        ['rm', '-rf'] + ghost_files,
-                        check=True,
-                        timeout=30
-                    )
-                    self.logger.info("Ghost files removed from mount point")
-                else:
-                    self.logger.info("No ghost files found in mount point")
-            except Exception as e:
-                self.logger.warning(f"Failed to clean ghost files (not critical): {e}")
-        else:
-            self.logger.critical("SKIPPING ghost file cleanup - mount point is still mounted (unsafe)")
-
-        # ステップ5: LUKSデバイスをクローズ（失敗しても続行）
-        self.close_luks_device()
-
-        self.logger.critical("=" * 60)
-        self.logger.critical("SECURE WIPE COMPLETED SUCCESSFULLY")
-        self.logger.critical("Data is now PERMANENTLY UNRECOVERABLE")
         self.logger.critical("=" * 60)
 
-        # システム再起動（オプション）
+        # ステップ2: 即座にシステム再起動
+        # 再起動により、Samba/マウント/LUKSデバイスが自動的にクリーンアップされる
+        # 手動でのアンマウントやサービス停止は不要（再起動で確実に停止）
         if reboot_after:
-            self.logger.critical("Rebooting system now...")
-            self.logger.critical("This will unmask the mount unit and restore normal operation")
+            self.logger.critical("Rebooting system immediately...")
+            self.logger.critical("All services will be stopped automatically on reboot")
             subprocess.run(['systemctl', 'reboot'])
+            # Note: この後のコードは実行されない（再起動により中断）
+        else:
+            # 再起動しない場合のみ、手動クリーンアップを実行
+            self.logger.warning("Reboot disabled - performing manual cleanup")
+
+            # Sambaサービスを停止
+            self.stop_samba()
+
+            # ファイルシステムをアンマウント（強制）
+            unmount_success = self.unmount_filesystem()
+
+            # マウントポイント内のゴーストファイルを削除
+            if unmount_success:
+                try:
+                    import glob
+                    ghost_files = glob.glob(f"{self.mount_point}/*") + glob.glob(f"{self.mount_point}/.[!.]*")
+                    if ghost_files:
+                        self.logger.warning(f"Cleaning up {len(ghost_files)} ghost files in unmounted mount point")
+                        subprocess.run(
+                            ['rm', '-rf'] + ghost_files,
+                            check=True,
+                            timeout=30
+                        )
+                        self.logger.info("Ghost files removed from mount point")
+                    else:
+                        self.logger.info("No ghost files found in mount point")
+                except Exception as e:
+                    self.logger.warning(f"Failed to clean ghost files (not critical): {e}")
+            else:
+                self.logger.critical("SKIPPING ghost file cleanup - mount point is still mounted (unsafe)")
+
+            # LUKSデバイスをクローズ
+            self.close_luks_device()
+
+            self.logger.critical("Manual cleanup completed")
 
         return True
 
