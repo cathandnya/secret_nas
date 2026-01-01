@@ -18,4 +18,4 @@ ExecStop=/usr/sbin/cryptsetup close secure_nas_crypt
 TimeoutSec=0
 
 [Install]
-WantedBy=cryptsetup.target
+WantedBy=local-fs-pre.target
