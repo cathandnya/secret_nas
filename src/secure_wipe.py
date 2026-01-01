@@ -500,13 +500,25 @@ class SecureWiper:
 
         self.logger.info("All safety checks passed")
 
-        # ステップ1: Sambaサービスを停止
+        # ステップ1: キーファイルを完全削除（最優先で実行）
+        # これを最初に実行することで、以降の処理が失敗してもデータ復元を確実に防ぐ
+        # キーファイルを削除すれば、LUKS暗号化されたデータは永久に復元不可能
+        if self.keyfile.exists():
+            if not self.shred_keyfile():
+                self.logger.error("Failed to shred keyfile - manual cleanup may be required")
+                raise RuntimeError("Failed to shred keyfile")
+        else:
+            self.logger.warning(f"Keyfile {self.keyfile} already deleted - skipping shred")
+
+        self.logger.critical("KEYFILE DELETED - Data is now PERMANENTLY UNRECOVERABLE")
+
+        # ステップ2: Sambaサービスを停止
         self.stop_samba()
 
-        # ステップ2: ファイルシステムをアンマウント（強制）
+        # ステップ3: ファイルシステムをアンマウント（強制）
         unmount_success = self.unmount_filesystem()
 
-        # ステップ3: マウントポイント内のゴーストファイルを削除
+        # ステップ4: マウントポイント内のゴーストファイルを削除
         # （アンマウント後にSDカード上に残った平文ファイルを削除）
         # アンマウント成功時のみ実行（マウント中のファイル削除は危険）
         if unmount_success:
@@ -528,19 +540,8 @@ class SecureWiper:
         else:
             self.logger.critical("SKIPPING ghost file cleanup - mount point is still mounted (unsafe)")
 
-        # ステップ4: LUKSデバイスをクローズ（失敗しても続行）
+        # ステップ5: LUKSデバイスをクローズ（失敗しても続行）
         self.close_luks_device()
-
-        # ステップ5: キーファイルを完全削除（最後に実行）
-        # キーファイルを削除すれば、LUKS暗号化されたデータは永久に復元不可能
-        # ヘッダー削除は不要（キーなしでは復号化できない）
-        # クリーンアップ時に既に削除されている可能性があるため、失敗を許容
-        if self.keyfile.exists():
-            if not self.shred_keyfile():
-                self.logger.error("Failed to shred keyfile - manual cleanup may be required")
-                raise RuntimeError("Failed to shred keyfile")
-        else:
-            self.logger.warning(f"Keyfile {self.keyfile} already deleted - skipping shred")
 
         self.logger.critical("=" * 60)
         self.logger.critical("SECURE WIPE COMPLETED SUCCESSFULLY")
