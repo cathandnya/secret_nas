@@ -237,6 +237,59 @@ sudo systemctl stop nas-monitor
 sudo systemctl start nas-monitor
 ```
 
+## システム更新
+
+### 自動更新スクリプト（推奨）
+
+GitHubから最新版に更新する場合は、`update.sh` スクリプトを使用します。
+
+```bash
+cd ~/secret_nas
+sudo ./update.sh
+```
+
+#### 更新内容
+
+- Python ソースファイル
+- systemd サービスファイル
+- Samba 設定ファイル（確認あり）
+- ヘルパースクリプト
+- サービスの自動再起動
+
+#### 更新の流れ
+
+1. Git から最新版を取得（`git pull`）
+2. ローカルの設定変更を自動的に stash
+3. 変更があったファイルのみ更新
+4. 必要なサービスを再起動
+5. サービス状態とログを表示
+
+### 手動更新
+
+```bash
+# Raspberry Pi にSSHでログイン
+ssh pi@raspberrypi.local
+
+# リポジトリを更新
+cd ~/secret_nas
+git pull
+
+# 必要に応じて個別にファイルをコピー
+sudo cp src/*.py /opt/nas-monitor/src/
+sudo cp systemd/*.service /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# サービス再起動
+sudo systemctl restart nas-monitor
+```
+
+### 更新時の注意事項
+
+- **設定ファイル**: `/etc/nas-monitor/config.json` は自動的に保持されます
+- **Samba設定**: 更新時に確認メッセージが表示されます
+- **サービス再起動**: 更新中は一時的にNASへのアクセスができなくなります
+- **バックアップ**: Samba設定は自動的にバックアップされます（`/etc/samba/smb.conf.backup.*`）
+
 ### 設定変更
 
 #### 削除日数を変更する

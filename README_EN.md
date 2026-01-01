@@ -202,6 +202,59 @@ sudo systemctl stop nas-monitor
 sudo systemctl start nas-monitor
 ```
 
+## System Update
+
+### Automatic Update Script (Recommended)
+
+To update to the latest version from GitHub, use the `update.sh` script.
+
+```bash
+cd ~/secret_nas
+sudo ./update.sh
+```
+
+#### What Gets Updated
+
+- Python source files
+- systemd service files
+- Samba configuration (with confirmation)
+- Helper scripts
+- Automatic service restart
+
+#### Update Process
+
+1. Pull latest changes from Git (`git pull`)
+2. Automatically stash local config changes
+3. Update only changed files
+4. Restart necessary services
+5. Display service status and logs
+
+### Manual Update
+
+```bash
+# SSH into Raspberry Pi
+ssh pi@raspberrypi.local
+
+# Update repository
+cd ~/secret_nas
+git pull
+
+# Copy files individually if needed
+sudo cp src/*.py /opt/nas-monitor/src/
+sudo cp systemd/*.service /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# Restart service
+sudo systemctl restart nas-monitor
+```
+
+### Update Notes
+
+- **Config file**: `/etc/nas-monitor/config.json` is automatically preserved
+- **Samba config**: Confirmation prompt shown before updating
+- **Service restart**: NAS access temporarily unavailable during update
+- **Backup**: Samba config is automatically backed up (`/etc/samba/smb.conf.backup.*`)
+
 ### Changing Configuration
 
 #### Change Deletion Days
