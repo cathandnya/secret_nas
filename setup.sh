@@ -572,9 +572,14 @@ EOF
 
     # systemdサービスをインストール
     cp "$SCRIPT_DIR/systemd/nas-monitor.service" /etc/systemd/system/
+    cp "$SCRIPT_DIR/systemd/luks-open-nas.service" /etc/systemd/system/
 
     # systemd リロード
     systemctl daemon-reload
+
+    # LUKS自動マウントサービスを有効化
+    log_info "Enabling LUKS auto-mount service..."
+    systemctl enable luks-open-nas.service
 
     # 古い状態ファイルをクリーンアップ（既存インストールからの残存ファイルを削除）
     log_info "Cleaning up old state files from previous installations..."
