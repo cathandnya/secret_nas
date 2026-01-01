@@ -207,6 +207,19 @@ class NASMonitor:
             self.logger.critical(f"Last access: {last_access}")
             self.logger.critical(f"Days since last access: {self.tracker.days_since_last_access()}")
 
+            # 削除完了通知を送信（削除実行前に送信、再起動前に確実に送る）
+            if self.notifier:
+                try:
+                    days_elapsed = self.tracker.days_since_last_access()
+                    self.logger.info("Sending wipe completion notification...")
+                    self.notifier.send_wipe_complete_notification(
+                        days_elapsed=days_elapsed,
+                        last_access=last_access
+                    )
+                    self.logger.info("Wipe completion notification sent successfully")
+                except Exception as e:
+                    self.logger.error(f"Failed to send wipe complete notification: {e}")
+
             # 消去実行
             # キーファイルを shred で完全削除することで、LUKS 暗号化データを復元不可能にする
             self.wiper.execute_secure_wipe(
@@ -216,18 +229,8 @@ class NASMonitor:
             self.logger.critical("Secure wipe completed successfully")
             self.logger.critical("Data is now PERMANENTLY UNRECOVERABLE")
 
-            # 削除完了通知を送信
-            if self.notifier:
-                try:
-                    days_elapsed = self.tracker.days_since_last_access()
-                    self.notifier.send_wipe_complete_notification(
-                        days_elapsed=days_elapsed,
-                        last_access=last_access
-                    )
-                except Exception as e:
-                    self.logger.error(f"Failed to send wipe complete notification: {e}")
-
             # 監視サービスを無効化（再起動を防ぐ）
+            # Note: reboot_after=True の場合、ここには到達しない（再起動される）
             self._disable_monitor_service()
 
         except Exception as e:
