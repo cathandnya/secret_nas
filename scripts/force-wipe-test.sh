@@ -1,14 +1,14 @@
 #!/bin/bash
 #
 # Force Wipe Test Script
-# 最終アクセス日を過去に設定して即座に削除をトリガーするテストスクリプト
+# Set last access date to the past to immediately trigger deletion test
 #
-# 使用方法:
+# Usage:
 #   sudo ./scripts/force-wipe-test.sh [days]
 #
-# 例:
-#   sudo ./scripts/force-wipe-test.sh 31  # 31日前に設定（デフォルト30日で削除）
-#   sudo ./scripts/force-wipe-test.sh 8   # 8日前に設定（7日で警告メール送信）
+# Examples:
+#   sudo ./scripts/force-wipe-test.sh 31  # Set to 31 days ago (default deletion after 30 days)
+#   sudo ./scripts/force-wipe-test.sh 8   # Set to 8 days ago (warning email at 7 days)
 #
 
 set -e
@@ -33,69 +33,69 @@ echo "  Force Wipe Test Script"
 echo "=========================================="
 echo ""
 
-# root権限チェック
+# Check root permissions
 if [ "$EUID" -ne 0 ]; then
-    log_error "このスクリプトはroot権限で実行する必要があります"
-    echo "実行方法: sudo $0 [days]"
+    log_error "This script must be run as root"
+    echo "Usage: sudo $0 [days]"
     exit 1
 fi
 
-# 引数チェック
+# Check arguments
 if ! [[ "$DAYS_AGO" =~ ^[0-9]+$ ]]; then
-    log_error "引数は正の整数である必要があります"
-    echo "実行方法: sudo $0 [days]"
+    log_error "Argument must be a positive integer"
+    echo "Usage: sudo $0 [days]"
     exit 1
 fi
 
-log_step "1. 現在の状態確認..."
+log_step "1. Checking current state..."
 
-# 設定ファイル確認
+# Check config file
 CONFIG_FILE="/etc/nas-monitor/config.json"
 if [ ! -f "$CONFIG_FILE" ]; then
-    log_error "設定ファイルが見つかりません: $CONFIG_FILE"
-    log_info "先に setup.sh を実行してください"
+    log_error "Config file not found: $CONFIG_FILE"
+    log_info "Please run setup.sh first"
     exit 1
 fi
 
-# 削除日数を取得
+# Get deletion days
 INACTIVITY_DAYS=$(jq -r '.inactivity_days' "$CONFIG_FILE" 2>/dev/null || echo "30")
-log_info "設定された削除日数: $INACTIVITY_DAYS 日"
+log_info "Configured deletion days: $INACTIVITY_DAYS days"
 
-# 警告日を取得
+# Get warning days
 WARNING_DAYS=$(jq -r '.warning_days[]' "$CONFIG_FILE" 2>/dev/null | tr '\n' ',' | sed 's/,$//')
 if [ -n "$WARNING_DAYS" ]; then
-    log_info "警告メール送信日: $WARNING_DAYS 日前"
+    log_info "Warning email days: $WARNING_DAYS days before deletion"
 fi
 
 echo ""
 
-# 状態ファイル確認
+# Check state file
 if [ -f "$STATE_FILE" ]; then
     CURRENT_ACCESS=$(jq -r '.last_access' "$STATE_FILE" 2>/dev/null || echo "unknown")
-    log_info "現在の最終アクセス日時: $CURRENT_ACCESS"
+    log_info "Current last access time: $CURRENT_ACCESS"
 else
-    log_warn "状態ファイルが存在しません: $STATE_FILE"
+    log_warn "State file does not exist: $STATE_FILE"
 fi
 
 echo ""
-log_step "2. 最終アクセス日を $DAYS_AGO 日前に設定..."
+log_step "2. Setting last access date to $DAYS_AGO days ago..."
 
-# 過去の日時を計算（ISO 8601形式、タイムゾーン情報なし = offset-naive）
-# access_tracker.py が datetime.now() (offset-naive) と比較するため、Zサフィックスは付けない
+# Calculate past date (ISO 8601 format, offset-naive without Z suffix)
+# access_tracker.py compares with datetime.now() (offset-naive), so no Z suffix
 PAST_DATE=$(date -d "$DAYS_AGO days ago" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null || \
             date -v-${DAYS_AGO}d '+%Y-%m-%dT%H:%M:%S' 2>/dev/null)
 
 if [ -z "$PAST_DATE" ]; then
-    log_error "日付計算に失敗しました"
+    log_error "Failed to calculate date"
     exit 1
 fi
 
-log_info "設定する日時: $PAST_DATE"
+log_info "Setting date to: $PAST_DATE"
 
-# 状態ファイルディレクトリ作成
+# Create state file directory
 mkdir -p "$(dirname "$STATE_FILE")"
 
-# 状態ファイル書き込み
+# Write state file
 cat > "$STATE_FILE" <<EOF
 {
   "last_access": "$PAST_DATE"
@@ -103,69 +103,69 @@ cat > "$STATE_FILE" <<EOF
 EOF
 
 chmod 644 "$STATE_FILE"
-log_info "✓ 状態ファイル更新完了"
+log_info "✓ State file updated successfully"
 
 echo ""
-log_step "3. 予想される動作..."
+log_step "3. Expected behavior..."
 
 ELAPSED_DAYS=$DAYS_AGO
 
 if [ "$ELAPSED_DAYS" -ge "$INACTIVITY_DAYS" ]; then
-    log_error "⚠️  削除条件を満たしています！"
-    log_warn "次回のチェック（1時間以内）でデータが削除されます"
+    log_error "⚠️  Deletion criteria met!"
+    log_warn "Data will be deleted on next check (within 1 hour)"
     echo ""
-    log_warn "削除内容:"
-    log_warn "  - キーファイル (/root/.nas-keyfile) を shred で完全破壊"
-    log_warn "  - LUKSヘッダーを cryptsetup erase で破壊"
-    log_warn "  - USB内のデータは永久に復元不可能"
+    log_warn "Deletion process:"
+    log_warn "  - Keyfile (/root/.nas-keyfile) will be shredded completely"
+    log_warn "  - LUKS header will be erased with cryptsetup erase"
+    log_warn "  - Data on USB will be PERMANENTLY UNRECOVERABLE"
 elif [ -n "$WARNING_DAYS" ]; then
-    # 警告日チェック
+    # Check warning days
     for WARNING_DAY in $(echo "$WARNING_DAYS" | tr ',' ' '); do
         if [ "$ELAPSED_DAYS" -ge "$WARNING_DAY" ]; then
-            log_warn "⚠️  警告メール送信条件を満たしています"
-            log_info "次回のチェック時に警告メールが送信されます"
+            log_warn "⚠️  Warning email criteria met"
+            log_info "Warning email will be sent on next check"
             break
         fi
     done
 else
-    log_info "まだ削除・警告の条件を満たしていません"
+    log_info "Deletion/warning criteria not yet met"
     REMAINING=$((INACTIVITY_DAYS - ELAPSED_DAYS))
-    log_info "削除まで残り: $REMAINING 日"
+    log_info "Days until deletion: $REMAINING days"
 fi
 
 echo ""
-log_step "4. nas-monitor サービスを再起動して削除テスト実行..."
+log_step "4. Restarting nas-monitor service to trigger deletion test..."
 
-log_info "サービスを再起動します（削除処理が即座に実行されます）"
+log_info "Restarting service (deletion process will execute immediately)"
 systemctl restart nas-monitor
 
 sleep 2
 
-log_info "削除処理のログを確認中..."
+log_info "Checking deletion logs..."
 echo ""
-journalctl -u nas-monitor -n 50 --no-pager | grep -E "WIPE|delete|shred|LUKS" || log_warn "削除ログがまだ出力されていません"
+journalctl -u nas-monitor -n 50 --no-pager | grep -E "WIPE|delete|shred|LUKS" || log_warn "Deletion logs not yet available"
 
 echo ""
-log_step "5. 削除処理の監視..."
+log_step "5. Monitoring deletion process..."
 
 echo ""
-log_info "【リアルタイムログ監視】"
-echo "  以下のコマンドでログをリアルタイム監視できます:"
+log_info "[Real-time Log Monitoring]"
+echo "  Monitor logs in real-time with:"
 echo -e "     ${YELLOW}sudo journalctl -u nas-monitor -f${NC}"
 echo ""
 
-log_info "【削除を中止したい場合】"
-echo "  Sambaにアクセスして最終アクセス日を更新するか、"
-echo "  状態ファイルを削除してサービス再起動:"
+log_info "[To Cancel Deletion]"
+echo "  Access Samba to update last access time, or"
+echo "  Delete state file and restart service:"
 echo -e "     ${YELLOW}sudo rm -f $STATE_FILE${NC}"
 echo -e "     ${YELLOW}sudo systemctl restart nas-monitor${NC}"
 echo ""
 
-log_info "【テスト完了後のクリーンアップ】"
-echo "  削除後は以下を実行してUSBを再セットアップ:"
+log_info "[Cleanup After Test]"
+echo "  After deletion, re-setup USB with:"
 echo -e "     ${YELLOW}sudo ./scripts/re-encrypt-usb.sh${NC}"
 echo ""
 
-log_warn "⚠️  注意: このスクリプトは本番環境で使用しないでください"
-log_warn "       実際にデータが削除される可能性があります"
+log_warn "⚠️  WARNING: Do not use this script in production"
+log_warn "       Data may be actually deleted"
 echo ""
