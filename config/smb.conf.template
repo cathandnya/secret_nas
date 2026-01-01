@@ -59,6 +59,9 @@
     force user = root
     force group = nasusers
 
+    # Hide system directories from SMB clients
+    hide files = /lost+found/
+
     # Access Auditing (CRITICAL - Required for activity tracking)
     # Samba 4.22.4 only supports connect/disconnect operations
     vfs objects = full_audit
