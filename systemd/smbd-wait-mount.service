@@ -17,6 +17,9 @@ EnvironmentFile=-/etc/default/samba
 ExecStart=/usr/sbin/smbd --foreground --no-process-group $SMBDOPTIONS
 ExecReload=/bin/kill -HUP $MAINPID
 LimitCORE=infinity
+# Restart if mount becomes unavailable
+Restart=on-failure
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
