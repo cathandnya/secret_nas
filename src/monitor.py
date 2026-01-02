@@ -44,6 +44,10 @@ class NASMonitor:
         # ロガー取得
         self.logger = logging.getLogger(__name__)
 
+        # 共有名を取得
+        self.share_name = self.config.get('share_name', 'secure_share')
+        self.logger.info(f"Monitoring share: {self.share_name}")
+
         # キーファイルが存在しない場合は削除済みとみなす
         keyfile_path = Path(self.config.get('keyfile'))
         if not keyfile_path.exists():
@@ -73,7 +77,8 @@ class NASMonitor:
         if self.config.is_notification_enabled():
             self.notifier = EmailNotifier(
                 email_config=self.config.get_email_config(),
-                state_file=self.config.get('notification_state_file')
+                state_file=self.config.get('notification_state_file'),
+                share_name=self.share_name
             )
 
         # パラメータ
@@ -119,7 +124,7 @@ class NASMonitor:
                     if line:
                         # アクセスログが記録されたらアクセス時刻を更新
                         # Sambaのfull_auditログには共有名が含まれる
-                        if 'secure_share' in line:
+                        if self.share_name in line:
                             self.logger.debug(f"Access detected: {line.strip()}")
 
                             # 警告期間中（最初の警告日以降）の場合、キャンセル通知を送信

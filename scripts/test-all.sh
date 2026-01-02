@@ -188,10 +188,13 @@ test_samba() {
     fi
 
     # 共有リスト確認
-    if smbclient -L localhost -N 2>&1 | grep -q "secure_share"; then
-        log_pass "secure_share共有が公開されています"
+    # config.jsonから共有名を取得
+    SHARE_NAME=$(python3 -c "import json; print(json.load(open('/etc/nas-monitor/config.json'))['share_name'])" 2>/dev/null || echo "secure_share")
+
+    if smbclient -L localhost -N 2>&1 | grep -q "$SHARE_NAME"; then
+        log_pass "SMB share '$SHARE_NAME' is published"
     else
-        log_warn "secure_share共有が見つかりません"
+        log_warn "SMB share '$SHARE_NAME' not found"
     fi
 
     # 監査ログ確認

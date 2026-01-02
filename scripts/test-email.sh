@@ -50,6 +50,7 @@ try:
 
     hostname = socket.gethostname()
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    share_name = config.get('share_name', 'secure_share')
 
     body = f"""
 This is a test email from Secret NAS.
@@ -58,7 +59,7 @@ If you receive this email, your notification settings are configured correctly.
 
 NAS Information:
   Host: {hostname}
-  Share: secure_share
+  Share: {share_name}
   Test Time: {timestamp}
 
 Configuration:

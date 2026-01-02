@@ -317,6 +317,33 @@ setup_storage() {
     log_info "Storage mounted at $MOUNT_POINT with correct permissions"
 }
 
+# SMB share name configuration
+setup_share_name() {
+    log_step "Configuring SMB share name..."
+
+    echo ""
+    log_info "Configure SMB share name (default: secure_share)"
+    log_info "Allowed characters: alphanumeric and underscore (_)"
+    echo ""
+
+    while true; do
+        read -p "Enter share name (default: secure_share): " share_name_input
+        share_name_input=${share_name_input:-secure_share}
+
+        # Validation: alphanumeric and underscore only
+        if [[ "$share_name_input" =~ ^[a-zA-Z0-9_]+$ ]]; then
+            SHARE_NAME="$share_name_input"
+            log_info "Share name: $SHARE_NAME"
+            break
+        else
+            log_error "Invalid share name. Only alphanumeric characters and underscore (_) are allowed"
+            echo ""
+        fi
+    done
+
+    echo ""
+}
+
 # Samba設定
 setup_samba() {
     log_step "Configuring Samba..."
@@ -344,8 +371,9 @@ setup_samba() {
         cp /etc/samba/smb.conf /etc/samba/smb.conf.backup.$(date +%Y%m%d)
     fi
 
-    # Samba設定をコピー
-    cp "$SCRIPT_DIR/config/smb.conf.template" /etc/samba/smb.conf
+    # Samba設定をコピーして共有名を置換
+    sed "s/\[secure_share\]/\[$SHARE_NAME\]/" "$SCRIPT_DIR/config/smb.conf.template" > /etc/samba/smb.conf
+    log_info "Configured Samba with share name: $SHARE_NAME"
 
     # systemd override for Samba (file descriptor limit)
     mkdir -p /etc/systemd/system/smbd.service.d
@@ -537,6 +565,7 @@ setup_monitor() {
   "mount_point": "$MOUNT_POINT",
   "device": "$USB_DEVICE",
   "keyfile": "$KEYFILE",
+  "share_name": "$SHARE_NAME",
   "inactivity_days": ${inactivity_days:-30},
   "warning_days": ${WARNING_DAYS:-[23, 27, 29]},
   "state_file": "/var/lib/nas-monitor/last_access.json",
@@ -554,6 +583,7 @@ EOF
   "mount_point": "$MOUNT_POINT",
   "device": "$USB_DEVICE",
   "keyfile": "$KEYFILE",
+  "share_name": "$SHARE_NAME",
   "inactivity_days": ${inactivity_days:-30},
   "warning_days": ${WARNING_DAYS:-[23, 27, 29]},
   "state_file": "/var/lib/nas-monitor/last_access.json",
@@ -567,6 +597,21 @@ EOF
     # 設定ファイルの権限を厳格に設定（SMTPパスワードが含まれる可能性があるため）
     chmod 600 /etc/nas-monitor/config.json
     chown root:root /etc/nas-monitor/config.json
+
+    # JSON構文チェック
+    log_info "Validating JSON configuration..."
+    if python3 -c "import json; json.load(open('/etc/nas-monitor/config.json'))" 2>/dev/null; then
+        log_info "✓ JSON configuration is valid"
+    else
+        log_error "JSON configuration validation failed!"
+        log_error "The generated config.json has syntax errors"
+        echo ""
+        log_info "Configuration file content:"
+        cat /etc/nas-monitor/config.json
+        echo ""
+        log_error "Please report this issue at https://github.com/anthropics/claude-code/issues"
+        exit 1
+    fi
 
     log_info "Configuration saved to /etc/nas-monitor/config.json (permissions: 600)"
 
@@ -608,6 +653,7 @@ main() {
     install_dependencies
     setup_encryption
     setup_storage
+    setup_share_name
     setup_samba
     setup_inactivity_period
     setup_notification
@@ -619,8 +665,8 @@ main() {
     echo "=========================================="
     echo ""
     log_info "NAS is accessible at:"
-    log_info "  \\\\$(hostname)\\secure_share"
-    log_info "  smb://$(hostname).local/secure_share"
+    log_info "  \\\\$(hostname)\\$SHARE_NAME"
+    log_info "  smb://$(hostname).local/$SHARE_NAME"
     echo ""
     log_info "Monitor service status:"
     log_info "  systemctl status nas-monitor"

@@ -26,7 +26,8 @@ class EmailNotifier:
     def __init__(
         self,
         email_config: Dict[str, any],
-        state_file: str = '/var/lib/nas-monitor/notification_state.json'
+        state_file: str = '/var/lib/nas-monitor/notification_state.json',
+        share_name: str = 'secure_share'
     ):
         """
         初期化
@@ -34,9 +35,11 @@ class EmailNotifier:
         Args:
             email_config: メール設定辞書
             state_file: 通知状態ファイルパス
+            share_name: SMB共有名
         """
         self.email_config = email_config
         self.state_file = Path(state_file)
+        self.share_name = share_name
         self.logger = logging.getLogger(__name__)
 
         # 状態ファイルのディレクトリを作成
@@ -135,11 +138,11 @@ Secret NAS システムから自動通知です。
 
 【アクセス方法】
   ホスト: {hostname}.local (または {hostname})
-  共有名: secure_share
+  共有名: {self.share_name}
 
-  Windows: \\\\{hostname}.local\\secure_share
-  Mac: Finder > 移動 > サーバへ接続 > smb://{hostname}.local/secure_share
-  Linux: smb://{hostname}.local/secure_share
+  Windows: \\\\{hostname}.local\\{self.share_name}
+  Mac: Finder > 移動 > サーバへ接続 > smb://{hostname}.local/{self.share_name}
+  Linux: smb://{hostname}.local/{self.share_name}
 
 【重要】
 データを削除したい場合は、何もする必要はありません。
@@ -312,8 +315,8 @@ NASへのアクセスを検出したため、削除予定をキャンセルし�
   再度警告メールが送信され、最終的にデータが削除されます。
 
 【NASアクセス情報】
-  Windows: \\\\{hostname}\\secure_share
-  Mac/Linux: smb://{hostname}.local/secure_share
+  Windows: \\\\{hostname}\\{self.share_name}
+  Mac/Linux: smb://{hostname}.local/{self.share_name}
 
 データは安全に保持されています。引き続きご利用ください。
 
