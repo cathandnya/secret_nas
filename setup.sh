@@ -295,12 +295,6 @@ setup_storage() {
     log_info "LUKS UUID: $LUKS_UUID"
     log_info "Filesystem UUID: $FS_UUID"
 
-    # /etc/crypttab設定（起動時自動復号）
-    # 既存のエントリを削除してから新しいUUIDで追加（再セットアップ時のUUID不一致を防ぐ）
-    sed -i "/^$LUKS_NAME /d" /etc/crypttab
-    echo "$LUKS_NAME UUID=$LUKS_UUID $KEYFILE luks,nofail" >> /etc/crypttab
-    log_info "Updated /etc/crypttab with new UUID"
-
     # /etc/fstab設定
     # 既存のマウントポイントエントリを削除してから新しいUUIDで追加
     sed -i "\|$MOUNT_POINT|d" /etc/fstab

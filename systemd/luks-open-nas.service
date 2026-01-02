@@ -15,8 +15,6 @@ ExecStartPre=/bin/sh -c 'if ! /usr/sbin/cryptsetup status secure_nas_crypt >/dev
 # Wait for USB to appear at boot (up to 30s)
 ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do [ -e /dev/disk/by-uuid/__LUKS_UUID__ ] && exit 0; sleep 1; done; exit 1'
 ExecStart=/usr/sbin/cryptsetup luksOpen /dev/disk/by-uuid/__LUKS_UUID__ secure_nas_crypt --key-file /root/.nas-keyfile
-# Mount after unlock in case local-fs already passed
-ExecStartPost=/bin/systemctl start mnt-secure_nas.mount
 # Close LUKS device on shutdown
 ExecStop=/usr/sbin/cryptsetup close secure_nas_crypt
 TimeoutSec=0
