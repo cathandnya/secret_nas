@@ -103,6 +103,16 @@ if [ -f "$SCRIPT_DIR/systemd/smbd-wait-mount.service" ]; then
     fi
 fi
 
+if [ -f "$SCRIPT_DIR/systemd/luks-close-nas.service" ]; then
+    if ! cmp -s "$SCRIPT_DIR/systemd/luks-close-nas.service" /etc/systemd/system/luks-close-nas.service; then
+        cp "$SCRIPT_DIR/systemd/luks-close-nas.service" /etc/systemd/system/
+        log_info "✓ luks-close-nas.service updated"
+        SERVICES_UPDATED=true
+    else
+        log_info "luks-close-nas.service already up to date"
+    fi
+fi
+
 # Reload systemd if services were updated
 if [ "$SERVICES_UPDATED" = true ]; then
     systemctl daemon-reload

@@ -1,0 +1,20 @@
+[Unit]
+Description=Close LUKS encrypted NAS device and cleanup
+DefaultDependencies=no
+Before=umount.target
+# Stop services that depend on the mount
+Conflicts=smbd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+# Ensure Samba is stopped before unmounting
+ExecStartPre=/bin/systemctl stop smbd 2>/dev/null || true
+# Force unmount if still mounted
+ExecStartPre=/bin/sh -c 'mountpoint -q /mnt/secure_nas && umount -f /mnt/secure_nas || true'
+# Close LUKS device if open
+ExecStart=/bin/sh -c 'cryptsetup status secure_nas_crypt >/dev/null 2>&1 && cryptsetup close secure_nas_crypt || true'
+TimeoutStartSec=30
+
+[Install]
+WantedBy=multi-user.target

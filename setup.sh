@@ -623,6 +623,7 @@ EOF
 
     # systemdサービスをインストール
     cp "$SCRIPT_DIR/systemd/nas-monitor.service" /etc/systemd/system/
+    cp "$SCRIPT_DIR/systemd/luks-close-nas.service" /etc/systemd/system/
     if [ -n "$LUKS_UUID" ]; then
         sed "s/__LUKS_UUID__/$LUKS_UUID/g" "$SCRIPT_DIR/systemd/luks-open-nas.service" > /etc/systemd/system/luks-open-nas.service
     else
