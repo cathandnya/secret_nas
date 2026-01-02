@@ -139,7 +139,26 @@ else
     SAMBA_UPDATED=false
 fi
 
-log_step "5. Updating scripts..."
+log_step "5. Updating udev rules..."
+
+# Update udev rules if they exist
+if [ -f "$SCRIPT_DIR/udev/99-luks-usb.rules" ] && [ -f "/etc/udev/rules.d/99-luks-usb.rules" ]; then
+    # Extract UUID from existing rule
+    EXISTING_UUID=$(grep -oP 'ID_FS_UUID=="\K[^"]+' /etc/udev/rules.d/99-luks-usb.rules 2>/dev/null || echo "")
+
+    if [ -n "$EXISTING_UUID" ] && [ "$EXISTING_UUID" != "__LUKS_UUID__" ]; then
+        # Update rule with existing UUID
+        sed "s/__LUKS_UUID__/$EXISTING_UUID/g" "$SCRIPT_DIR/udev/99-luks-usb.rules" > /etc/udev/rules.d/99-luks-usb.rules
+        log_info "✓ udev rule updated (UUID preserved: $EXISTING_UUID)"
+        udevadm control --reload-rules
+    else
+        log_warn "Could not extract UUID from existing rule, skipping udev update"
+    fi
+else
+    log_info "udev rule not found or not installed, skipping"
+fi
+
+log_step "6. Updating scripts..."
 
 # Update scripts if they exist
 if [ -d "$SCRIPT_DIR/scripts" ] && [ -d "/opt/nas-monitor/scripts" ]; then
@@ -148,7 +167,7 @@ if [ -d "$SCRIPT_DIR/scripts" ] && [ -d "/opt/nas-monitor/scripts" ]; then
     log_info "✓ Scripts updated"
 fi
 
-log_step "6. Restarting services..."
+log_step "7. Restarting services..."
 
 # Restart nas-monitor service
 if systemctl is-active --quiet nas-monitor; then

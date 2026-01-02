@@ -609,6 +609,18 @@ EOF
 
     log_info "Configuration saved to /etc/nas-monitor/config.json (permissions: 600)"
 
+    # udevルールをインストール（USBデバイス接続時に自動的にLUKS解除を開始）
+    log_info "Installing udev rule for USB device auto-detection..."
+    if [ -n "$LUKS_UUID" ]; then
+        sed "s/__LUKS_UUID__/$LUKS_UUID/g" "$SCRIPT_DIR/udev/99-luks-usb.rules" > /etc/udev/rules.d/99-luks-usb.rules
+        log_info "✓ udev rule installed with UUID: $LUKS_UUID"
+        # udevルールをリロード
+        udevadm control --reload-rules
+        udevadm trigger
+    else
+        log_warn "LUKS UUID not set; skipping udev rule installation"
+    fi
+
     # systemdサービスをインストール
     cp "$SCRIPT_DIR/systemd/nas-monitor.service" /etc/systemd/system/
     if [ -n "$LUKS_UUID" ]; then
@@ -621,8 +633,8 @@ EOF
     # systemd リロード
     systemctl daemon-reload
 
-    # LUKS自動マウントサービスを有効化
-    log_info "Enabling LUKS auto-mount service..."
+    # LUKS自動マウントサービスを有効化（udevからトリガーされる）
+    log_info "Enabling LUKS auto-mount service (triggered by udev when USB is connected)..."
     systemctl enable luks-open-nas.service
 
     # 古い状態ファイルをクリーンアップ（既存インストールからの残存ファイルを削除）

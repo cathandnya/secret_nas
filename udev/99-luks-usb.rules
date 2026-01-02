@@ -1,0 +1,8 @@
+# udev rule for LUKS encrypted USB device
+# Triggers luks-open-nas.service when the registered USB device is connected
+#
+# This file will be customized during setup with the actual LUKS UUID
+# The placeholder __LUKS_UUID__ will be replaced with the real UUID
+
+# When the LUKS device appears, start the unlock service
+ACTION=="add", ENV{ID_FS_UUID}=="__LUKS_UUID__", ENV{ID_FS_TYPE}=="crypto_LUKS", TAG+="systemd", ENV{SYSTEMD_WANTS}="luks-open-nas.service"

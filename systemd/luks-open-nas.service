@@ -1,24 +1,26 @@
 [Unit]
 Description=Open LUKS encrypted NAS device
 DefaultDependencies=no
-After=local-fs-pre.target systemd-udev-settle.service
+After=local-fs-pre.target
 Before=local-fs.target cryptsetup.target
 Conflicts=umount.target
-Wants=systemd-udev-settle.service
 ConditionPathExists=/root/.nas-keyfile
+# Only run if device is not already open
+ConditionPathExists=!/dev/mapper/secure_nas_crypt
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-# Open LUKS device if not already open
-ExecStartPre=/bin/sh -c 'if ! /usr/sbin/cryptsetup status secure_nas_crypt >/dev/null 2>&1; then exit 0; else exit 1; fi || true'
-# Wait for USB to appear at boot (up to 60s for slow USB recognition)
-ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do [ -e /dev/disk/by-uuid/__LUKS_UUID__ ] && exit 0; sleep 1; done; exit 1'
+# Brief wait to ensure device node is fully ready (udev might trigger before block device is ready)
+ExecStartPre=/bin/sleep 2
+# Verify device exists before attempting unlock
+ExecStartPre=/bin/sh -c '[ -e /dev/disk/by-uuid/__LUKS_UUID__ ] || exit 1'
+# Open LUKS device
 ExecStart=/usr/sbin/cryptsetup luksOpen /dev/disk/by-uuid/__LUKS_UUID__ secure_nas_crypt --key-file /root/.nas-keyfile
 # Close LUKS device on shutdown
 ExecStop=/usr/sbin/cryptsetup close secure_nas_crypt
-# Allow enough time for USB device recognition (90s total: 60s wait + 30s unlock)
-TimeoutStartSec=90
+# Quick timeout since device should already be present (triggered by udev)
+TimeoutStartSec=30
 TimeoutStopSec=30
 
 [Install]
