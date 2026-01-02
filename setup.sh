@@ -240,8 +240,15 @@ setup_encryption() {
     # LUKS暗号化フォーマット
     log_warn "Formatting $USB_DEVICE with LUKS encryption..."
     log_warn "This will ERASE all data on the device!"
+    echo ""
+    read -p "Continue? (y/N): " -n 1 -r
+    echo ""
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        log_error "Encryption cancelled by user"
+        exit 1
+    fi
 
-    cryptsetup luksFormat \
+    echo "YES" | cryptsetup luksFormat \
         --type luks2 \
         --cipher aes-xts-plain64 \
         --key-size 256 \
