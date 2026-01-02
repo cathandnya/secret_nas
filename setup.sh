@@ -404,7 +404,7 @@ EOF
     systemctl restart rsyslog
     systemctl enable smbd
     systemctl enable mnt-secure_nas-cleanup.service
-    systemctl restart smbd
+    # Note: smbd will be started after luks-open-nas.service is installed in setup_monitor()
 
     log_info "Samba configured successfully (with mount wait and cache cleanup)"
 }
@@ -633,6 +633,10 @@ EOF
     # サービス有効化・起動
     systemctl enable nas-monitor
     systemctl start nas-monitor
+
+    # Start Samba service (now that luks-open-nas.service is installed)
+    log_info "Starting Samba service..."
+    systemctl restart smbd
 
     log_info "Monitoring service installed and started"
 }
