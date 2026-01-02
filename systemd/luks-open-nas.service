@@ -1,10 +1,10 @@
 [Unit]
 Description=Open LUKS encrypted NAS device
 DefaultDependencies=no
-After=local-fs-pre.target
+After=local-fs-pre.target systemd-udev-settle.service
 Before=local-fs.target cryptsetup.target
 Conflicts=umount.target
-ConditionPathExists=/dev/sda
+Wants=systemd-udev-settle.service
 ConditionPathExists=/root/.nas-keyfile
 
 [Service]
@@ -12,7 +12,11 @@ Type=oneshot
 RemainAfterExit=yes
 # Open LUKS device if not already open
 ExecStartPre=/bin/sh -c 'if ! /usr/sbin/cryptsetup status secure_nas_crypt >/dev/null 2>&1; then exit 0; else exit 1; fi || true'
-ExecStart=/usr/sbin/cryptsetup luksOpen /dev/sda secure_nas_crypt --key-file /root/.nas-keyfile
+# Wait for USB to appear at boot (up to 30s)
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do [ -e /dev/disk/by-uuid/__LUKS_UUID__ ] && exit 0; sleep 1; done; exit 1'
+ExecStart=/usr/sbin/cryptsetup luksOpen /dev/disk/by-uuid/__LUKS_UUID__ secure_nas_crypt --key-file /root/.nas-keyfile
+# Mount after unlock in case local-fs already passed
+ExecStartPost=/bin/systemctl start mnt-secure_nas.mount
 # Close LUKS device on shutdown
 ExecStop=/usr/sbin/cryptsetup close secure_nas_crypt
 TimeoutSec=0

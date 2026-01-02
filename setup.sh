@@ -304,7 +304,7 @@ setup_storage() {
     # /etc/fstab設定
     # 既存のマウントポイントエントリを削除してから新しいUUIDで追加
     sed -i "\|$MOUNT_POINT|d" /etc/fstab
-    echo "UUID=$FS_UUID $MOUNT_POINT ext4 defaults,nofail,x-systemd.requires=systemd-cryptsetup@$LUKS_NAME.service,x-systemd.after=systemd-cryptsetup@$LUKS_NAME.service 0 2" >> /etc/fstab
+    echo "UUID=$FS_UUID $MOUNT_POINT ext4 defaults,nofail,x-systemd.requires=luks-open-nas.service,x-systemd.after=luks-open-nas.service 0 2" >> /etc/fstab
     log_info "Updated /etc/fstab with new UUID"
 
     # マウント
@@ -617,7 +617,12 @@ EOF
 
     # systemdサービスをインストール
     cp "$SCRIPT_DIR/systemd/nas-monitor.service" /etc/systemd/system/
-    cp "$SCRIPT_DIR/systemd/luks-open-nas.service" /etc/systemd/system/
+    if [ -n "$LUKS_UUID" ]; then
+        sed "s/__LUKS_UUID__/$LUKS_UUID/g" "$SCRIPT_DIR/systemd/luks-open-nas.service" > /etc/systemd/system/luks-open-nas.service
+    else
+        log_warn "LUKS UUID not set; installing default luks-open-nas.service"
+        cp "$SCRIPT_DIR/systemd/luks-open-nas.service" /etc/systemd/system/
+    fi
 
     # systemd リロード
     systemctl daemon-reload
