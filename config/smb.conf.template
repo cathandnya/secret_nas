@@ -34,6 +34,14 @@
     dns proxy = no
     wins support = no
 
+    # Mac compatibility (Finder, extended attributes, resource forks)
+    ea support = yes
+    vfs objects = catia fruit streams_xattr
+    fruit:metadata = stream
+    fruit:resource = stream
+    fruit:posix_rename = yes
+    fruit:zero_file_id = yes
+
 # Secure Share with Access Auditing
 [secure_share]
     comment = Secure NAS Storage (Auto-wipe after 30 days)
@@ -64,7 +72,7 @@
 
     # Access Auditing (CRITICAL - Required for activity tracking)
     # Samba 4.22.4 only supports connect/disconnect operations
-    vfs objects = full_audit
+    vfs objects = full_audit fruit streams_xattr
     full_audit:prefix = %u|%I|%S
     full_audit:success = connect disconnect
     full_audit:failure = none
