@@ -304,7 +304,7 @@ setup_storage() {
     # /etc/fstab設定
     # 既存のマウントポイントエントリを削除してから新しいUUIDで追加
     sed -i "\|$MOUNT_POINT|d" /etc/fstab
-    echo "UUID=$FS_UUID $MOUNT_POINT ext4 defaults,nofail 0 2" >> /etc/fstab
+    echo "UUID=$FS_UUID $MOUNT_POINT ext4 defaults,nofail,x-systemd.requires=systemd-cryptsetup@$LUKS_NAME.service,x-systemd.after=systemd-cryptsetup@$LUKS_NAME.service 0 2" >> /etc/fstab
     log_info "Updated /etc/fstab with new UUID"
 
     # マウント
