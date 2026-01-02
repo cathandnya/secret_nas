@@ -35,12 +35,10 @@
     wins support = no
 
     # Mac compatibility (Finder, extended attributes, resource forks)
+    # NOTE: vfs_fruit caused smbd panic on Samba 4.22.4 in the field.
+    # Keep xattr enabled; avoid fruit by default for stability.
     ea support = yes
-    vfs objects = catia fruit streams_xattr
-    fruit:metadata = stream
-    fruit:resource = stream
-    fruit:posix_rename = yes
-    fruit:zero_file_id = yes
+    vfs objects = catia
 
 # Secure Share with Access Auditing
 [secure_share]
@@ -72,7 +70,7 @@
 
     # Access Auditing (CRITICAL - Required for activity tracking)
     # Samba 4.22.4 only supports connect/disconnect operations
-    vfs objects = full_audit fruit streams_xattr
+    vfs objects = full_audit
     full_audit:prefix = %u|%I|%S
     full_audit:success = connect disconnect
     full_audit:failure = none
