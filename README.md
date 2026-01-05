@@ -1,8 +1,8 @@
-<img width="1920" height="1080" alt="サムネ 2026-01-05 10-45-51" src="https://github.com/user-attachments/assets/45608bbc-d97a-4113-91ea-62ed2b8daa55" /># Secret NAS
+# Secret NAS
 
 Raspberry Pi向けの自動消去機能付きセキュアNASシステム
 
-[![YouTube]([https://github.com/user-attachments/assets/edeb4a5f-5257-4a96-9b10-c4d03b915e95](https://github.com/user-attachments/assets/4db718be-2e41-4dbd-8cb5-a19e1272ea43))](https://www.youtube.com/watch?v=4m1WrizTQzQ)
+[![YouTube](https://github.com/user-attachments/assets/45608bbc-d97a-4113-91ea-62ed2b8daa55)](https://www.youtube.com/watch?v=4m1WrizTQzQ)
 
 **Language**: 日本語 | [English](README_EN.md)
 
