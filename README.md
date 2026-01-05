@@ -2,7 +2,7 @@
 
 Raspberry Pi向けの自動消去機能付きセキュアNASシステム
 
-[![YouTube](https://github.com/user-attachments/assets/45608bbc-d97a-4113-91ea-62ed2b8daa55)](https://www.youtube.com/watch?v=4m1WrizTQzQ)
+[![YouTube](https://github.com/user-attachments/assets/45608bbc-d97a-4113-91ea-62ed2b8daa55)](https://www.youtube.com/watch?v=3EpmKS0h7KM)
 
 **Language**: 日本語 | [English](README_EN.md)
 
