@@ -69,7 +69,8 @@
 
     # Access Auditing (CRITICAL - Required for activity tracking)
     # Samba 4.22.4 only supports connect/disconnect operations
-    vfs objects = catia full_audit
+    # streams_xattr: Required for iOS 18+ write access (Apple changed SMB behavior)
+    vfs objects = catia full_audit streams_xattr
     full_audit:prefix = %u|%I|%S
     full_audit:success = connect disconnect
     full_audit:failure = none
