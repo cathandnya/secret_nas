@@ -216,6 +216,7 @@ install_dependencies() {
     apt-get update
     apt-get install -y \
         samba \
+        samba-vfs-modules \
         rsyslog \
         python3 \
         python3-pip \
