@@ -119,7 +119,19 @@ if [ "$SERVICES_UPDATED" = true ]; then
     log_info "✓ systemd daemon reloaded"
 fi
 
-log_step "4. Updating Samba configuration..."
+log_step "4. Checking dependencies..."
+
+# Ensure samba-vfs-modules is installed (required for iOS 18+ compatibility)
+if ! dpkg -l | grep -q samba-vfs-modules; then
+    log_info "Installing samba-vfs-modules (required for iOS 18+ write access)..."
+    apt-get update
+    apt-get install -y samba-vfs-modules
+    log_info "✓ samba-vfs-modules installed"
+else
+    log_info "samba-vfs-modules already installed"
+fi
+
+log_step "5. Updating Samba configuration..."
 
 # Update Samba config (preserve existing if user modified)
 if [ -f "/etc/samba/smb.conf" ] && [ -f "$SCRIPT_DIR/config/smb.conf.template" ]; then
@@ -149,7 +161,7 @@ else
     SAMBA_UPDATED=false
 fi
 
-log_step "5. Updating udev rules..."
+log_step "6. Updating udev rules..."
 
 # Update udev rules if they exist
 if [ -f "$SCRIPT_DIR/udev/99-luks-usb.rules" ] && [ -f "/etc/udev/rules.d/99-luks-usb.rules" ]; then
@@ -168,7 +180,7 @@ else
     log_info "udev rule not found or not installed, skipping"
 fi
 
-log_step "6. Updating scripts..."
+log_step "7. Updating scripts..."
 
 # Update scripts if they exist
 if [ -d "$SCRIPT_DIR/scripts" ] && [ -d "/opt/nas-monitor/scripts" ]; then
@@ -177,7 +189,7 @@ if [ -d "$SCRIPT_DIR/scripts" ] && [ -d "/opt/nas-monitor/scripts" ]; then
     log_info "✓ Scripts updated"
 fi
 
-log_step "7. Restarting services..."
+log_step "8. Restarting services..."
 
 # Restart nas-monitor service
 if systemctl is-active --quiet nas-monitor; then
