@@ -146,7 +146,14 @@ if [ -f "/etc/samba/smb.conf" ] && [ -f "$SCRIPT_DIR/config/smb.conf.template" ]
         read -p "Update Samba config? (y/N): " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            cp "$SCRIPT_DIR/config/smb.conf.template" /etc/samba/smb.conf
+            # Preserve existing share name
+            EXISTING_SHARE_NAME=$(grep -oP '^\[\K[^\]]+' /etc/samba/smb.conf | grep -v global | head -1)
+            if [ -n "$EXISTING_SHARE_NAME" ] && [ "$EXISTING_SHARE_NAME" != "secure_share" ]; then
+                log_info "Preserving existing share name: $EXISTING_SHARE_NAME"
+                sed "s/\[secure_share\]/[$EXISTING_SHARE_NAME]/" "$SCRIPT_DIR/config/smb.conf.template" > /etc/samba/smb.conf
+            else
+                cp "$SCRIPT_DIR/config/smb.conf.template" /etc/samba/smb.conf
+            fi
             log_info "✓ Samba config updated"
             SAMBA_UPDATED=true
         else
