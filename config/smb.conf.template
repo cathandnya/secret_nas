@@ -34,6 +34,11 @@
     dns proxy = no
     wins support = no
 
+    # Hide from network scanning
+    local master = no
+    preferred master = no
+    domain master = no
+
     # Mac compatibility (Finder, extended attributes, resource forks)
     # NOTE: vfs_fruit caused smbd panic on Samba 4.22.4 in the field.
     # Keep xattr enabled; avoid fruit by default for stability.
@@ -47,7 +52,7 @@
     # Access Control
     valid users = @nasusers
     read only = no
-    browseable = yes
+    browseable = no
     guest ok = no
 
     # Security: Prevent writes to unmounted directory
