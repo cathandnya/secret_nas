@@ -28,6 +28,9 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(dirname "$SCRIPT_DIR")"
+
 USB_DEVICE="/dev/sda"
 LUKS_NAME="secure_nas_crypt"
 MOUNT_POINT="/mnt/secure_nas"
@@ -112,6 +115,34 @@ sed -i "/$LUKS_NAME/d" /etc/crypttab
 echo "$LUKS_NAME UUID=$LUKS_UUID $KEYFILE luks" >> /etc/crypttab
 log_info "✓ /etc/crypttab updated"
 
+# ステップ7.5: LUKS UUID を埋め込んだ unit / udev ルールを再生成
+# luksFormat で UUID が変わるため、__LUKS_UUID__ を展開してインストールされた
+# luks-open-nas.service と 99-luks-usb.rules も更新しないと、次回起動時に
+# 古い UUID を参照して解錠に失敗する（デバイスは開いたままなので、この
+# スクリプトの実行中は問題が表面化しない）
+log_info "Step 7.5: Updating unit and udev rule with the new LUKS UUID..."
+if [ -f "$REPO_DIR/systemd/luks-open-nas.service" ]; then
+    sed "s/__LUKS_UUID__/$LUKS_UUID/g" "$REPO_DIR/systemd/luks-open-nas.service" \
+        > /etc/systemd/system/luks-open-nas.service
+    log_info "✓ luks-open-nas.service updated"
+else
+    log_warn "Template not found: $REPO_DIR/systemd/luks-open-nas.service"
+    log_warn "  /etc/systemd/system/luks-open-nas.service still holds the OLD UUID"
+fi
+
+if [ -f "$REPO_DIR/udev/99-luks-usb.rules" ]; then
+    sed "s/__LUKS_UUID__/$LUKS_UUID/g" "$REPO_DIR/udev/99-luks-usb.rules" \
+        > /etc/udev/rules.d/99-luks-usb.rules
+    udevadm control --reload-rules
+    udevadm trigger
+    log_info "✓ 99-luks-usb.rules updated"
+else
+    log_warn "Template not found: $REPO_DIR/udev/99-luks-usb.rules"
+    log_warn "  /etc/udev/rules.d/99-luks-usb.rules still holds the OLD UUID"
+fi
+
+systemctl daemon-reload
+
 # ステップ8: /etc/fstab 更新
 log_info "Step 8: Updating /etc/fstab..."
 FS_UUID=$(blkid -s UUID -o value "/dev/mapper/$LUKS_NAME")
@@ -119,7 +150,7 @@ log_info "Filesystem UUID: $FS_UUID"
 
 # 既存のエントリを削除して新しく追加
 sed -i "\|$MOUNT_POINT|d" /etc/fstab
-echo "UUID=$FS_UUID $MOUNT_POINT ext4 defaults,nofail 0 2" >> /etc/fstab
+echo "UUID=$FS_UUID $MOUNT_POINT ext4 defaults,nofail,x-systemd.requires=luks-open-nas.service,x-systemd.after=luks-open-nas.service,x-systemd.wants=smbd.service 0 2" >> /etc/fstab
 log_info "✓ /etc/fstab updated"
 
 # ステップ9: マウント
