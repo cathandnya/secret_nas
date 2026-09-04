@@ -306,7 +306,7 @@ setup_storage() {
     # /etc/fstab設定
     # 既存のマウントポイントエントリを削除してから新しいUUIDで追加
     sed -i "\|$MOUNT_POINT|d" /etc/fstab
-    echo "UUID=$FS_UUID $MOUNT_POINT ext4 defaults,nofail,x-systemd.requires=luks-open-nas.service,x-systemd.after=luks-open-nas.service,x-systemd.wants=smbd.service 0 2" >> /etc/fstab
+    echo "UUID=$FS_UUID $MOUNT_POINT ext4 defaults,nofail,x-systemd.requires=luks-open-nas.service,x-systemd.after=luks-open-nas.service 0 2" >> /etc/fstab
     log_info "Updated /etc/fstab with new UUID"
 
     # マウント

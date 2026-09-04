@@ -13,6 +13,12 @@ BindsTo=mnt-secure_nas.mount
 # Requires=/BindsTo= already refuse to start smbd without the mount and stop it
 # when the mount goes away, so the condition was redundant protection with a
 # real failure mode of its own.
+#
+# Do NOT add x-systemd.wants=smbd.service to the fstab entry to "help" this
+# along: combined with After=mnt-secure_nas.mount below it forms an ordering
+# cycle, and systemd breaks the cycle by dropping jobs - leaving neither the
+# mount nor smbd running. Requires= is enough; the mount pulls itself in from
+# local-fs.target and smbd follows it.
 
 [Service]
 Type=notify
