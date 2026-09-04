@@ -83,13 +83,39 @@ if [ -f "$SCRIPT_DIR/systemd/nas-monitor.service" ]; then
     fi
 fi
 
+# This unit ships as a template: setup.sh substitutes the real LUKS UUID into
+# __LUKS_UUID__ at install time. Copying the template verbatim would write the
+# placeholder back, and ExecStartPre would then test a path that cannot exist -
+# the volume stays locked from the next boot on. Carry the installed UUID over,
+# the same way the udev rule is handled in step 6.
 if [ -f "$SCRIPT_DIR/systemd/luks-open-nas.service" ]; then
-    if ! cmp -s "$SCRIPT_DIR/systemd/luks-open-nas.service" /etc/systemd/system/luks-open-nas.service; then
-        cp "$SCRIPT_DIR/systemd/luks-open-nas.service" /etc/systemd/system/
-        log_info "✓ luks-open-nas.service updated"
-        SERVICES_UPDATED=true
+    INSTALLED_LUKS_UUID=$(grep -oP '/dev/disk/by-uuid/\K[0-9a-fA-F-]{36}' \
+        /etc/systemd/system/luks-open-nas.service 2>/dev/null | head -1 || echo "")
+
+    if [ -z "$INSTALLED_LUKS_UUID" ]; then
+        # Fall back to the running device so a host already holding the
+        # placeholder is repaired rather than left broken.
+        INSTALLED_LUKS_UUID=$(cryptsetup luksUUID /dev/mapper/secure_nas_crypt 2>/dev/null || echo "")
+        [ -z "$INSTALLED_LUKS_UUID" ] && INSTALLED_LUKS_UUID=$(grep -oP 'ID_FS_UUID=="\K[^"]+' \
+            /etc/udev/rules.d/99-luks-usb.rules 2>/dev/null | head -1 || echo "")
+    fi
+
+    if [ -n "$INSTALLED_LUKS_UUID" ] && [ "$INSTALLED_LUKS_UUID" != "__LUKS_UUID__" ]; then
+        NEW_UNIT=$(mktemp)
+        sed "s/__LUKS_UUID__/$INSTALLED_LUKS_UUID/g" \
+            "$SCRIPT_DIR/systemd/luks-open-nas.service" > "$NEW_UNIT"
+        if ! cmp -s "$NEW_UNIT" /etc/systemd/system/luks-open-nas.service; then
+            cp "$NEW_UNIT" /etc/systemd/system/luks-open-nas.service
+            log_info "✓ luks-open-nas.service updated (UUID preserved: $INSTALLED_LUKS_UUID)"
+            SERVICES_UPDATED=true
+        else
+            log_info "luks-open-nas.service already up to date"
+        fi
+        rm -f "$NEW_UNIT"
     else
-        log_info "luks-open-nas.service already up to date"
+        log_warn "Could not determine the LUKS UUID; leaving luks-open-nas.service untouched"
+        log_warn "  Overwriting it would restore the __LUKS_UUID__ placeholder and"
+        log_warn "  the encrypted volume would fail to unlock on the next boot."
     fi
 fi
 
