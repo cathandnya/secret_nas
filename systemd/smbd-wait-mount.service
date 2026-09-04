@@ -6,8 +6,13 @@ Wants=network-online.target
 # Only start Samba after the encrypted USB is mounted
 Requires=mnt-secure_nas.mount
 BindsTo=mnt-secure_nas.mount
-# Verify mount point exists as additional safety check
-ConditionPathIsMountPoint=/mnt/secure_nas
+# NOTE: ConditionPathIsMountPoint was removed intentionally.
+# systemd evaluates Condition* at activation time and *silently skips* the unit
+# (no error, no journal entry, no retry) when it does not hold. During boot this
+# raced with mnt-secure_nas.mount and left smbd dead until started by hand.
+# Requires=/BindsTo= already refuse to start smbd without the mount and stop it
+# when the mount goes away, so the condition was redundant protection with a
+# real failure mode of its own.
 
 [Service]
 Type=notify

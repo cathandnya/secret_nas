@@ -93,14 +93,20 @@ if [ -f "$SCRIPT_DIR/systemd/luks-open-nas.service" ]; then
     fi
 fi
 
+# NOTE: setup.sh installs this unit as smbd.service (it replaces the distro's
+# own smbd.service), so it must be compared and copied under that name. Copying
+# it to smbd-wait-mount.service instead leaves an orphan file that nothing reads
+# and silently keeps the running smbd.service stale.
 if [ -f "$SCRIPT_DIR/systemd/smbd-wait-mount.service" ]; then
-    if ! cmp -s "$SCRIPT_DIR/systemd/smbd-wait-mount.service" /etc/systemd/system/smbd-wait-mount.service; then
-        cp "$SCRIPT_DIR/systemd/smbd-wait-mount.service" /etc/systemd/system/
-        log_info "✓ smbd-wait-mount.service updated"
+    if ! cmp -s "$SCRIPT_DIR/systemd/smbd-wait-mount.service" /etc/systemd/system/smbd.service; then
+        cp "$SCRIPT_DIR/systemd/smbd-wait-mount.service" /etc/systemd/system/smbd.service
+        log_info "✓ smbd.service updated"
         SERVICES_UPDATED=true
     else
-        log_info "smbd-wait-mount.service already up to date"
+        log_info "smbd.service already up to date"
     fi
+    # Remove the orphan left behind by older versions of this script
+    rm -f /etc/systemd/system/smbd-wait-mount.service
 fi
 
 if [ -f "$SCRIPT_DIR/systemd/luks-close-nas.service" ]; then
