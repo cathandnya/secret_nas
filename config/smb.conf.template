@@ -57,11 +57,16 @@
 
     # Security: Prevent writes to unmounted directory
     # Check if path is actually a mount point before allowing access
+    # "preexec close" is required: without it Samba ignores the exit status and
+    # the client is connected anyway, landing writes on the bare SD-card
+    # directory underneath the mount point.
     preexec = /bin/bash -c "mountpoint -q /mnt/secure_nas || exit 1"
+    preexec close = yes
 
-    # Additional safety: Check mount status on disconnect
-    # If USB was unmounted during session, prevent reconnection
-    root_postexec = /bin/bash -c "mountpoint -q /mnt/secure_nas || systemctl stop smbd"
+    # NOTE: a root_postexec hook used to stop smbd when the mount disappeared.
+    # Samba 4 removed that parameter, so it never ran (testparm reported it as
+    # unknown). BindsTo=mnt-secure_nas.mount in smbd.service stops smbd when the
+    # mount goes away, so the hook is not reinstated here.
 
     # File Permissions
     create mask = 0660
