@@ -403,6 +403,12 @@ EOF
     # マウント待機版のsmbd.serviceをインストール
     cp "$SCRIPT_DIR/systemd/smbd-wait-mount.service" /etc/systemd/system/smbd.service
 
+    # マウント完了時に smbd を起動させる drop-in を配置
+    # (smbd.service の Requires=/BindsTo= は制約であって起動契機ではない)
+    mkdir -p /etc/systemd/system/mnt-secure_nas.mount.d
+    cp "$SCRIPT_DIR/systemd/mnt-secure_nas.mount.d/start-smbd.conf" \
+        /etc/systemd/system/mnt-secure_nas.mount.d/start-smbd.conf
+
     # ページキャッシュクリアサービスをインストール（アンマウント時のセキュリティ強化）
     cp "$SCRIPT_DIR/systemd/mnt-secure_nas-cleanup.service" /etc/systemd/system/
     log_info "Installed page cache cleanup service for unmount security"

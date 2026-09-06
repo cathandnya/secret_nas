@@ -135,6 +135,21 @@ if [ -f "$SCRIPT_DIR/systemd/smbd-wait-mount.service" ]; then
     rm -f /etc/systemd/system/smbd-wait-mount.service
 fi
 
+# The mount needs a Wants= on smbd or smbd never gets a job at boot; see the
+# comment inside the drop-in.
+if [ -f "$SCRIPT_DIR/systemd/mnt-secure_nas.mount.d/start-smbd.conf" ]; then
+    mkdir -p /etc/systemd/system/mnt-secure_nas.mount.d
+    if ! cmp -s "$SCRIPT_DIR/systemd/mnt-secure_nas.mount.d/start-smbd.conf" \
+            /etc/systemd/system/mnt-secure_nas.mount.d/start-smbd.conf; then
+        cp "$SCRIPT_DIR/systemd/mnt-secure_nas.mount.d/start-smbd.conf" \
+            /etc/systemd/system/mnt-secure_nas.mount.d/start-smbd.conf
+        log_info "✓ mnt-secure_nas.mount drop-in updated"
+        SERVICES_UPDATED=true
+    else
+        log_info "mnt-secure_nas.mount drop-in already up to date"
+    fi
+fi
+
 if [ -f "$SCRIPT_DIR/systemd/luks-close-nas.service" ]; then
     if ! cmp -s "$SCRIPT_DIR/systemd/luks-close-nas.service" /etc/systemd/system/luks-close-nas.service; then
         cp "$SCRIPT_DIR/systemd/luks-close-nas.service" /etc/systemd/system/
