@@ -6,6 +6,7 @@ Sambaログを監視し、30日間アクセスがない場合にセキュア消�
 23, 27, 29日目に段階的な警告メールを送信する。
 """
 
+import os
 import signal
 import subprocess
 import sys
@@ -112,44 +113,104 @@ class NASMonitor:
             self.logger.warning("Access tracking will rely on periodic checks only")
             return
 
+        f = None
         try:
-            with open(log_path, 'r') as f:
-                # ファイル末尾に移動
-                f.seek(0, 2)
+            f = open(log_path, 'r')
+            f.seek(0, 2)  # 末尾から読み始める
+            current_inode = os.fstat(f.fileno()).st_ino
 
-                self.logger.info(f"Monitoring Samba log: {log_file}")
+            self.logger.info(f"Monitoring Samba log: {log_file}")
 
-                while self.running:
-                    line = f.readline()
-                    if line:
-                        # アクセスログが記録されたらアクセス時刻を更新
-                        # Sambaのfull_auditログには共有名が含まれる
-                        if self.share_name in line:
-                            self.logger.debug(f"Access detected: {line.strip()}")
+            while self.running:
+                line = f.readline()
 
-                            # 警告期間中（最初の警告日以降）の場合、キャンセル通知を送信
-                            days = self.tracker.days_since_last_access()
-                            if days is not None and len(self.warning_days) > 0:
-                                first_warning_day = self.warning_days[0]
-                                if days >= first_warning_day and self.notifier:
-                                    try:
-                                        self.notifier.send_deletion_cancelled_notification()
-                                        self.logger.info("Deletion cancelled notification sent")
-                                    except Exception as e:
-                                        self.logger.error(f"Failed to send cancellation notification: {e}")
-
-                            # アクセス時刻を更新
-                            self.tracker.update_access()
-
-                            # 通知状態をリセット
-                            if self.notifier:
-                                self.notifier.reset_notification_state()
+                if not line:
+                    reopened = self._reopen_if_rotated(log_path, f, current_inode)
+                    if reopened is not None:
+                        f, current_inode = reopened
                     else:
-                        # 新しい行がない場合は少し待つ
                         time.sleep(1)
+                    continue
+
+                # Sambaのfull_auditログには共有名が含まれる
+                if self.share_name not in line:
+                    continue
+
+                self.logger.debug(f"Access detected: {line.strip()}")
+
+                # 警告期間中（最初の警告日以降）の場合、キャンセル通知を送信
+                days = self.tracker.days_since_last_access()
+                if days is not None and len(self.warning_days) > 0:
+                    first_warning_day = self.warning_days[0]
+                    if days >= first_warning_day and self.notifier:
+                        try:
+                            self.notifier.send_deletion_cancelled_notification()
+                            self.logger.info("Deletion cancelled notification sent")
+                        except Exception as e:
+                            self.logger.error(f"Failed to send cancellation notification: {e}")
+
+                # アクセス時刻を更新
+                self.tracker.update_access()
+
+                # 通知状態をリセット
+                if self.notifier:
+                    self.notifier.reset_notification_state()
 
         except Exception as e:
             self.logger.error(f"Error monitoring Samba log: {e}")
+        finally:
+            if f is not None:
+                try:
+                    f.close()
+                except Exception:
+                    pass
+
+    def _reopen_if_rotated(self, log_path: Path, f, current_inode: int):
+        """ログがローテーションされていれば開き直す
+
+        logrotate は既定でファイルを rename して作り直すため、開いたままの
+        ハンドルはローテーション済みの audit.log.1 を指し続ける。これを
+        検知しないとサービスは active のまま二度とアクセスを検出しなくなり、
+        「使っているのに無操作と判定されて削除される」という無音の障害になる。
+
+        Returns:
+            開き直した場合は (新しいファイルオブジェクト, inode)、
+            ローテーションしていなければ None
+        """
+        try:
+            st = os.stat(log_path)
+        except FileNotFoundError:
+            # ローテーション直後で作り直し待ちの一瞬。次の周回で拾う
+            return None
+
+        if st.st_ino != current_inode:
+            self.logger.info("Samba audit log rotated; reopening")
+            try:
+                f.close()
+            except Exception:
+                pass
+            new_f = open(log_path, 'r')
+            return new_f, os.fstat(new_f.fileno()).st_ino
+
+        # copytruncate 運用への対応。inode が同じでもサイズが読み取り位置より
+        # 小さくなっていれば切り詰められたとみなす。
+        #
+        # ここで先頭 (seek(0)) ではなく末尾へ移動するのが要点。
+        # テキストモードの tell() はバイト位置ではなく不透明な cookie を返す
+        # 仕様のため、将来この比較が誤って真になる可能性を排除できない。
+        # そのとき先頭へ戻すと、過去のアクセス行をすべて読み直して
+        # update_access() が発火し、ワイプタイマーが不当にリセットされる。
+        # 無操作を測る仕組みが静かに無効化されるという最悪の壊れ方になる。
+        #
+        # 末尾へ移動する場合、切り詰め直後に書かれた行を取りこぼす可能性は
+        # あるが、失うのは高々1秒分のアクセス記録であり、次のアクセスで
+        # 更新される。結末の非対称性を踏まえて安全側に倒している。
+        if st.st_size < f.tell():
+            self.logger.info("Samba audit log truncated; seeking to end")
+            f.seek(0, 2)
+            return f, current_inode
+
+        return None
 
     def check_and_notify(self):
         """

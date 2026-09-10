@@ -28,6 +28,37 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
+# rsyslog の実行ユーザーを判定する。
+#
+# 設定ファイルは「意図」を表すが、実行中のプロセスは「事実」を表す。
+# drop-in やディストリのコンパイル時既定によって $PrivDropToUser の記述が
+# 無くても syslog へ降格している環境があり (Ubuntu 26.04 で実際にそうだった)、
+# 逆に syslog ユーザーが存在するだけで実際は root で動いている環境もありうる。
+# 後者で誤って chown すると、存在しなかった障害を疑わせる警告を出してしまう。
+# したがって実行中のプロセスの所有者を最優先で見る。
+detect_syslog_user() {
+    local pid owner
+
+    pid=$(systemctl show rsyslog -p MainPID --value 2>/dev/null)
+    if [ -n "$pid" ] && [ "$pid" != "0" ] && [ -d "/proc/$pid" ]; then
+        # ps -o user= は8文字で切られることがあるため /proc の所有者を見る
+        owner=$(stat -c '%U' "/proc/$pid" 2>/dev/null)
+        if [ -n "$owner" ] && [ "$owner" != "UNKNOWN" ]; then
+            printf '%s' "$owner"
+            return 0
+        fi
+    fi
+
+    # rsyslog が停止しているなど、事実を確認できない場合のみ設定を見る
+    owner=$(awk '/^\$PrivDropToUser/{print $2}' /etc/rsyslog.conf 2>/dev/null | tail -1)
+    if [ -n "$owner" ] && id -u "$owner" >/dev/null 2>&1; then
+        printf '%s' "$owner"
+        return 0
+    fi
+
+    return 1
+}
+
 # ルート権限チェック
 if [[ $EUID -ne 0 ]]; then
    log_error "This script must be run as root"
@@ -391,9 +422,46 @@ local5.* /var/log/samba/audit.log
 EOF
 
     # ログディレクトリとファイル作成
+    #
+    # 所有者を rsyslog の実行ユーザーに合わせるのが要点。
+    # Debian/Ubuntu の rsyslog は syslog ユーザーへ権限降格して動作するため、
+    # root 所有で作成すると監査ログに書き込めない。このとき smbd も rsyslog も
+    # エラーを出さず、監査イベントは /var/log/syslog へ流れるだけなので、
+    # 「アクセスしているのに last_access が更新されず、無操作と判定されて
+    # データが削除される」という無音の障害になる。
     mkdir -p /var/log/samba
     touch /var/log/samba/audit.log
-    chmod 644 /var/log/samba/audit.log
+
+    # rsyslog の実行ユーザーを判定する（判定できなければ root のまま）
+    local syslog_user
+    syslog_user=$(detect_syslog_user || true)
+
+    if [ -n "$syslog_user" ] && [ "$syslog_user" != "root" ] && id -u "$syslog_user" >/dev/null 2>&1; then
+        local syslog_group="adm"
+        getent group "$syslog_group" >/dev/null 2>&1 || syslog_group=$(id -gn "$syslog_user")
+        chown "$syslog_user:$syslog_group" /var/log/samba/audit.log
+        chmod 640 /var/log/samba/audit.log
+        log_info "Audit log owner: $syslog_user:$syslog_group"
+    else
+        chmod 644 /var/log/samba/audit.log
+        if [ "$syslog_user" = "root" ]; then
+            log_info "rsyslog runs as root; audit log ownership left as is"
+        else
+            log_warn "Could not determine rsyslog user; audit log left as root-owned"
+        fi
+    fi
+
+    # logrotate 設定。監査ログは接続のたびに追記されるため、
+    # 設定が無いと無制限に肥大する。ローテーション時に所有者が root へ
+    # 戻らないよう create で明示し、postrotate で nas-monitor を再起動する
+    # （monitor.py は開いたファイルハンドルを保持するため、再起動しないと
+    #  ローテーション後のログを読まなくなる）。
+    if [ -f "$SCRIPT_DIR/config/logrotate-samba-audit" ]; then
+        sed "s|__LOG_OWNER__|${syslog_user:-root} ${syslog_group:-adm}|" \
+            "$SCRIPT_DIR/config/logrotate-samba-audit" > /etc/logrotate.d/samba-audit
+        chmod 644 /etc/logrotate.d/samba-audit
+        log_info "Installed logrotate config: /etc/logrotate.d/samba-audit"
+    fi
 
     # systemdサービス設定（マウント待機版を使用）
     # デフォルトのsmbd.serviceを無効化

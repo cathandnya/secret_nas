@@ -17,6 +17,37 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
+# rsyslog の実行ユーザーを判定する。
+#
+# 設定ファイルは「意図」を表すが、実行中のプロセスは「事実」を表す。
+# drop-in やディストリのコンパイル時既定によって $PrivDropToUser の記述が
+# 無くても syslog へ降格している環境があり (Ubuntu 26.04 で実際にそうだった)、
+# 逆に syslog ユーザーが存在するだけで実際は root で動いている環境もありうる。
+# 後者で誤って chown すると、存在しなかった障害を疑わせる警告を出してしまう。
+# したがって実行中のプロセスの所有者を最優先で見る。
+detect_syslog_user() {
+    local pid owner
+
+    pid=$(systemctl show rsyslog -p MainPID --value 2>/dev/null)
+    if [ -n "$pid" ] && [ "$pid" != "0" ] && [ -d "/proc/$pid" ]; then
+        # ps -o user= は8文字で切られることがあるため /proc の所有者を見る
+        owner=$(stat -c '%U' "/proc/$pid" 2>/dev/null)
+        if [ -n "$owner" ] && [ "$owner" != "UNKNOWN" ]; then
+            printf '%s' "$owner"
+            return 0
+        fi
+    fi
+
+    # rsyslog が停止しているなど、事実を確認できない場合のみ設定を見る
+    owner=$(awk '/^\$PrivDropToUser/{print $2}' /etc/rsyslog.conf 2>/dev/null | tail -1)
+    if [ -n "$owner" ] && id -u "$owner" >/dev/null 2>&1; then
+        printf '%s' "$owner"
+        return 0
+    fi
+
+    return 1
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo ""
@@ -219,7 +250,59 @@ else
     log_info "udev rule not found or not installed, skipping"
 fi
 
-log_step "7. Updating scripts..."
+log_step "7. Fixing Samba audit log ownership and rotation..."
+
+# 既存インストールにも監査ログの修正を反映する。
+#
+# ここが抜けていると、update.sh を実行しても直るのは monitor.py だけになり、
+# 所有者の問題 (rsyslog が書き込めない) と logrotate 未設定 (無制限に肥大) は
+# 新規インストールにしか効かない。既存環境こそ壊れている可能性が高いので、
+# ここで揃える。
+#
+# monitor.py は同じ update.sh の実行で既に更新されているため、logrotate を
+# 配置してもローテーション検知は効いている状態になる。順序は安全。
+if [ -f /var/log/samba/audit.log ]; then
+    # rsyslog の実行ユーザーを判定する
+    SYSLOG_USER=$(detect_syslog_user || true)
+
+    if [ "$SYSLOG_USER" = "root" ]; then
+        log_info "✓ rsyslog runs as root; audit log ownership does not need changing"
+        SYSLOG_GROUP="adm"
+    elif [ -n "$SYSLOG_USER" ] && id -u "$SYSLOG_USER" >/dev/null 2>&1; then
+        SYSLOG_GROUP="adm"
+        getent group "$SYSLOG_GROUP" >/dev/null 2>&1 || SYSLOG_GROUP=$(id -gn "$SYSLOG_USER")
+        CURRENT_OWNER=$(stat -c '%U' /var/log/samba/audit.log 2>/dev/null || echo "")
+        if [ "$CURRENT_OWNER" != "$SYSLOG_USER" ]; then
+            chown "$SYSLOG_USER:$SYSLOG_GROUP" /var/log/samba/audit.log
+            chmod 640 /var/log/samba/audit.log
+            systemctl restart rsyslog 2>/dev/null || true
+            log_info "✓ Audit log owner fixed: $CURRENT_OWNER -> $SYSLOG_USER:$SYSLOG_GROUP"
+            log_warn "  rsyslog could not write to the audit log until now."
+            log_warn "  Access tracking was likely not working. Verify last_access updates."
+        else
+            log_info "✓ Audit log owner is already correct ($SYSLOG_USER)"
+        fi
+    else
+        log_warn "Could not determine rsyslog user; leaving audit log ownership as is"
+        SYSLOG_USER="root"; SYSLOG_GROUP="adm"
+    fi
+
+    # logrotate 設定
+    if [ -f "$SCRIPT_DIR/config/logrotate-samba-audit" ]; then
+        if [ -f /etc/logrotate.d/samba-audit ]; then
+            log_info "✓ logrotate config already installed"
+        else
+            sed "s|__LOG_OWNER__|${SYSLOG_USER:-root} ${SYSLOG_GROUP:-adm}|" \
+                "$SCRIPT_DIR/config/logrotate-samba-audit" > /etc/logrotate.d/samba-audit
+            chmod 644 /etc/logrotate.d/samba-audit
+            log_info "✓ logrotate config installed: /etc/logrotate.d/samba-audit"
+        fi
+    fi
+else
+    log_info "Samba audit log not found, skipping"
+fi
+
+log_step "8. Updating scripts..."
 
 # Update scripts if they exist
 if [ -d "$SCRIPT_DIR/scripts" ] && [ -d "/opt/nas-monitor/scripts" ]; then
@@ -228,7 +311,7 @@ if [ -d "$SCRIPT_DIR/scripts" ] && [ -d "/opt/nas-monitor/scripts" ]; then
     log_info "✓ Scripts updated"
 fi
 
-log_step "8. Restarting services..."
+log_step "9. Restarting services..."
 
 # Restart nas-monitor service
 if systemctl is-active --quiet nas-monitor; then
