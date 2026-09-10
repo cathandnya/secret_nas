@@ -193,10 +193,21 @@ class NASMonitor:
             return new_f, os.fstat(new_f.fileno()).st_ino
 
         # copytruncate 運用への対応。inode が同じでもサイズが読み取り位置より
-        # 小さくなっていれば切り詰められたとみなし、先頭から読み直す。
+        # 小さくなっていれば切り詰められたとみなす。
+        #
+        # ここで先頭 (seek(0)) ではなく末尾へ移動するのが要点。
+        # テキストモードの tell() はバイト位置ではなく不透明な cookie を返す
+        # 仕様のため、将来この比較が誤って真になる可能性を排除できない。
+        # そのとき先頭へ戻すと、過去のアクセス行をすべて読み直して
+        # update_access() が発火し、ワイプタイマーが不当にリセットされる。
+        # 無操作を測る仕組みが静かに無効化されるという最悪の壊れ方になる。
+        #
+        # 末尾へ移動する場合、切り詰め直後に書かれた行を取りこぼす可能性は
+        # あるが、失うのは高々1秒分のアクセス記録であり、次のアクセスで
+        # 更新される。結末の非対称性を踏まえて安全側に倒している。
         if st.st_size < f.tell():
-            self.logger.info("Samba audit log truncated; seeking to start")
-            f.seek(0)
+            self.logger.info("Samba audit log truncated; seeking to end")
+            f.seek(0, 2)
             return f, current_inode
 
         return None
