@@ -1,0 +1,26 @@
+# Samba 監査ログのローテーション設定。
+#
+# nas-monitor はこのログを読んでアクセス日時を更新する。ログが失われたり
+# 書き込めなくなると「アクセスしているのに無操作と判定される」状態になり、
+# 気づかないうちにデータが削除される。以下の2点がそのための対策。
+#
+#   create  ... ローテーション時に所有者を rsyslog の実行ユーザーへ戻す。
+#               root 所有で作り直されると rsyslog が書き込めなくなる。
+#   postrotate ... nas-monitor を再起動する。monitor.py はローテーションを
+#               検知して開き直すが、取りこぼしを確実に避けるため明示する。
+#
+# __LOG_OWNER__ は setup.sh が実際のユーザーとグループに置換する。
+/var/log/samba/audit.log {
+    weekly
+    rotate 8
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 640 __LOG_OWNER__
+    sharedscripts
+    postrotate
+        /usr/lib/rsyslog/rsyslog-rotate 2>/dev/null || true
+        systemctl try-restart nas-monitor.service > /dev/null 2>&1 || true
+    endscript
+}
