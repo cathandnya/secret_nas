@@ -28,6 +28,37 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
+# rsyslog の実行ユーザーを判定する。
+#
+# 設定ファイルは「意図」を表すが、実行中のプロセスは「事実」を表す。
+# drop-in やディストリのコンパイル時既定によって $PrivDropToUser の記述が
+# 無くても syslog へ降格している環境があり (Ubuntu 26.04 で実際にそうだった)、
+# 逆に syslog ユーザーが存在するだけで実際は root で動いている環境もありうる。
+# 後者で誤って chown すると、存在しなかった障害を疑わせる警告を出してしまう。
+# したがって実行中のプロセスの所有者を最優先で見る。
+detect_syslog_user() {
+    local pid owner
+
+    pid=$(systemctl show rsyslog -p MainPID --value 2>/dev/null)
+    if [ -n "$pid" ] && [ "$pid" != "0" ] && [ -d "/proc/$pid" ]; then
+        # ps -o user= は8文字で切られることがあるため /proc の所有者を見る
+        owner=$(stat -c '%U' "/proc/$pid" 2>/dev/null)
+        if [ -n "$owner" ] && [ "$owner" != "UNKNOWN" ]; then
+            printf '%s' "$owner"
+            return 0
+        fi
+    fi
+
+    # rsyslog が停止しているなど、事実を確認できない場合のみ設定を見る
+    owner=$(awk '/^\$PrivDropToUser/{print $2}' /etc/rsyslog.conf 2>/dev/null | tail -1)
+    if [ -n "$owner" ] && id -u "$owner" >/dev/null 2>&1; then
+        printf '%s' "$owner"
+        return 0
+    fi
+
+    return 1
+}
+
 # ルート権限チェック
 if [[ $EUID -ne 0 ]]; then
    log_error "This script must be run as root"
@@ -401,14 +432,11 @@ EOF
     mkdir -p /var/log/samba
     touch /var/log/samba/audit.log
 
-    # rsyslog の実行ユーザーを設定から判定する（無ければ root のまま）
+    # rsyslog の実行ユーザーを判定する（判定できなければ root のまま）
     local syslog_user
-    syslog_user=$(awk '/^\$PrivDropToUser/{print $2}' /etc/rsyslog.conf 2>/dev/null | tail -1)
-    if [ -z "$syslog_user" ] && id -u syslog >/dev/null 2>&1; then
-        syslog_user="syslog"
-    fi
+    syslog_user=$(detect_syslog_user || true)
 
-    if [ -n "$syslog_user" ] && id -u "$syslog_user" >/dev/null 2>&1; then
+    if [ -n "$syslog_user" ] && [ "$syslog_user" != "root" ] && id -u "$syslog_user" >/dev/null 2>&1; then
         local syslog_group="adm"
         getent group "$syslog_group" >/dev/null 2>&1 || syslog_group=$(id -gn "$syslog_user")
         chown "$syslog_user:$syslog_group" /var/log/samba/audit.log
@@ -416,7 +444,11 @@ EOF
         log_info "Audit log owner: $syslog_user:$syslog_group"
     else
         chmod 644 /var/log/samba/audit.log
-        log_warn "Could not determine rsyslog user; audit log left as root-owned"
+        if [ "$syslog_user" = "root" ]; then
+            log_info "rsyslog runs as root; audit log ownership left as is"
+        else
+            log_warn "Could not determine rsyslog user; audit log left as root-owned"
+        fi
     fi
 
     # logrotate 設定。監査ログは接続のたびに追記されるため、

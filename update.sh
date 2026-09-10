@@ -17,6 +17,37 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
+# rsyslog の実行ユーザーを判定する。
+#
+# 設定ファイルは「意図」を表すが、実行中のプロセスは「事実」を表す。
+# drop-in やディストリのコンパイル時既定によって $PrivDropToUser の記述が
+# 無くても syslog へ降格している環境があり (Ubuntu 26.04 で実際にそうだった)、
+# 逆に syslog ユーザーが存在するだけで実際は root で動いている環境もありうる。
+# 後者で誤って chown すると、存在しなかった障害を疑わせる警告を出してしまう。
+# したがって実行中のプロセスの所有者を最優先で見る。
+detect_syslog_user() {
+    local pid owner
+
+    pid=$(systemctl show rsyslog -p MainPID --value 2>/dev/null)
+    if [ -n "$pid" ] && [ "$pid" != "0" ] && [ -d "/proc/$pid" ]; then
+        # ps -o user= は8文字で切られることがあるため /proc の所有者を見る
+        owner=$(stat -c '%U' "/proc/$pid" 2>/dev/null)
+        if [ -n "$owner" ] && [ "$owner" != "UNKNOWN" ]; then
+            printf '%s' "$owner"
+            return 0
+        fi
+    fi
+
+    # rsyslog が停止しているなど、事実を確認できない場合のみ設定を見る
+    owner=$(awk '/^\$PrivDropToUser/{print $2}' /etc/rsyslog.conf 2>/dev/null | tail -1)
+    if [ -n "$owner" ] && id -u "$owner" >/dev/null 2>&1; then
+        printf '%s' "$owner"
+        return 0
+    fi
+
+    return 1
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo ""
@@ -231,13 +262,13 @@ log_step "7. Fixing Samba audit log ownership and rotation..."
 # monitor.py は同じ update.sh の実行で既に更新されているため、logrotate を
 # 配置してもローテーション検知は効いている状態になる。順序は安全。
 if [ -f /var/log/samba/audit.log ]; then
-    # rsyslog の実行ユーザーを設定から判定する
-    SYSLOG_USER=$(awk '/^\$PrivDropToUser/{print $2}' /etc/rsyslog.conf 2>/dev/null | tail -1)
-    if [ -z "$SYSLOG_USER" ] && id -u syslog >/dev/null 2>&1; then
-        SYSLOG_USER="syslog"
-    fi
+    # rsyslog の実行ユーザーを判定する
+    SYSLOG_USER=$(detect_syslog_user || true)
 
-    if [ -n "$SYSLOG_USER" ] && id -u "$SYSLOG_USER" >/dev/null 2>&1; then
+    if [ "$SYSLOG_USER" = "root" ]; then
+        log_info "✓ rsyslog runs as root; audit log ownership does not need changing"
+        SYSLOG_GROUP="adm"
+    elif [ -n "$SYSLOG_USER" ] && id -u "$SYSLOG_USER" >/dev/null 2>&1; then
         SYSLOG_GROUP="adm"
         getent group "$SYSLOG_GROUP" >/dev/null 2>&1 || SYSLOG_GROUP=$(id -gn "$SYSLOG_USER")
         CURRENT_OWNER=$(stat -c '%U' /var/log/samba/audit.log 2>/dev/null || echo "")
