@@ -219,7 +219,59 @@ else
     log_info "udev rule not found or not installed, skipping"
 fi
 
-log_step "7. Updating scripts..."
+log_step "7. Fixing Samba audit log ownership and rotation..."
+
+# 既存インストールにも監査ログの修正を反映する。
+#
+# ここが抜けていると、update.sh を実行しても直るのは monitor.py だけになり、
+# 所有者の問題 (rsyslog が書き込めない) と logrotate 未設定 (無制限に肥大) は
+# 新規インストールにしか効かない。既存環境こそ壊れている可能性が高いので、
+# ここで揃える。
+#
+# monitor.py は同じ update.sh の実行で既に更新されているため、logrotate を
+# 配置してもローテーション検知は効いている状態になる。順序は安全。
+if [ -f /var/log/samba/audit.log ]; then
+    # rsyslog の実行ユーザーを設定から判定する
+    SYSLOG_USER=$(awk '/^\$PrivDropToUser/{print $2}' /etc/rsyslog.conf 2>/dev/null | tail -1)
+    if [ -z "$SYSLOG_USER" ] && id -u syslog >/dev/null 2>&1; then
+        SYSLOG_USER="syslog"
+    fi
+
+    if [ -n "$SYSLOG_USER" ] && id -u "$SYSLOG_USER" >/dev/null 2>&1; then
+        SYSLOG_GROUP="adm"
+        getent group "$SYSLOG_GROUP" >/dev/null 2>&1 || SYSLOG_GROUP=$(id -gn "$SYSLOG_USER")
+        CURRENT_OWNER=$(stat -c '%U' /var/log/samba/audit.log 2>/dev/null || echo "")
+        if [ "$CURRENT_OWNER" != "$SYSLOG_USER" ]; then
+            chown "$SYSLOG_USER:$SYSLOG_GROUP" /var/log/samba/audit.log
+            chmod 640 /var/log/samba/audit.log
+            systemctl restart rsyslog 2>/dev/null || true
+            log_info "✓ Audit log owner fixed: $CURRENT_OWNER -> $SYSLOG_USER:$SYSLOG_GROUP"
+            log_warn "  rsyslog could not write to the audit log until now."
+            log_warn "  Access tracking was likely not working. Verify last_access updates."
+        else
+            log_info "✓ Audit log owner is already correct ($SYSLOG_USER)"
+        fi
+    else
+        log_warn "Could not determine rsyslog user; leaving audit log ownership as is"
+        SYSLOG_USER="root"; SYSLOG_GROUP="adm"
+    fi
+
+    # logrotate 設定
+    if [ -f "$SCRIPT_DIR/config/logrotate-samba-audit" ]; then
+        if [ -f /etc/logrotate.d/samba-audit ]; then
+            log_info "✓ logrotate config already installed"
+        else
+            sed "s|__LOG_OWNER__|${SYSLOG_USER:-root} ${SYSLOG_GROUP:-adm}|" \
+                "$SCRIPT_DIR/config/logrotate-samba-audit" > /etc/logrotate.d/samba-audit
+            chmod 644 /etc/logrotate.d/samba-audit
+            log_info "✓ logrotate config installed: /etc/logrotate.d/samba-audit"
+        fi
+    fi
+else
+    log_info "Samba audit log not found, skipping"
+fi
+
+log_step "8. Updating scripts..."
 
 # Update scripts if they exist
 if [ -d "$SCRIPT_DIR/scripts" ] && [ -d "/opt/nas-monitor/scripts" ]; then
@@ -228,7 +280,7 @@ if [ -d "$SCRIPT_DIR/scripts" ] && [ -d "/opt/nas-monitor/scripts" ]; then
     log_info "✓ Scripts updated"
 fi
 
-log_step "8. Restarting services..."
+log_step "9. Restarting services..."
 
 # Restart nas-monitor service
 if systemctl is-active --quiet nas-monitor; then
