@@ -70,7 +70,9 @@ class NASMonitor:
         self.wiper = SecureWiper(
             mount_point=self.config.get('mount_point'),
             device=self.config.get('device'),
-            keyfile=self.config.get('keyfile')
+            keyfile=self.config.get('keyfile'),
+            samba_stop_mode=self.config.get('samba_stop_mode', 'service'),
+            share_name=self.share_name
         )
 
         # 通知
