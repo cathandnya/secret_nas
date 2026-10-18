@@ -26,7 +26,9 @@ class SecureWiper:
         mount_point: str = '/mnt/secure_nas',
         device: str = None,
         keyfile: str = '/root/.nas-keyfile',
-        luks_name: str = 'secure_nas_crypt'
+        luks_name: str = 'secure_nas_crypt',
+        samba_stop_mode: str = 'service',
+        share_name: str = 'secure_share'
     ):
         """
         初期化
@@ -36,11 +38,15 @@ class SecureWiper:
             device: デバイスパス（例: /dev/sda）
             keyfile: LUKSキーファイルパス
             luks_name: LUKS デバイスマッパー名
+            samba_stop_mode: "service" なら smbd を止める、"share" なら share_name の接続だけ切る
+            share_name: samba_stop_mode が "share" のときに切る共有名
         """
         self.mount_point = Path(mount_point)
         self.device = device
         self.keyfile = Path(keyfile)
         self.luks_name = luks_name
+        self.samba_stop_mode = samba_stop_mode
+        self.share_name = share_name
         self.logger = logging.getLogger(__name__)
 
     def verify_safe_to_wipe(self) -> Tuple[bool, List[str]]:
@@ -153,6 +159,22 @@ class SecureWiper:
         Returns:
             成功した場合True
         """
+        if self.samba_stop_mode == 'share':
+            # smbd が他の共有も出しているホストでは smbd を止めない。
+            # この共有の接続だけ切る。再接続は smb.conf の preexec
+            # (mountpoint -q) がアンマウント後に拒否する。
+            self.logger.info(f"Closing Samba share: {self.share_name} (smbd keeps running)")
+            try:
+                subprocess.run(
+                    ['smbcontrol', 'smbd', 'close-share', self.share_name],
+                    check=False,  # 失敗しても続行
+                    timeout=30
+                )
+                self.logger.info("Samba share closed")
+            except Exception as e:
+                self.logger.warning(f"Failed to close Samba share (continuing anyway): {e}")
+            return True
+
         self.logger.info("Stopping Samba service")
 
         try:

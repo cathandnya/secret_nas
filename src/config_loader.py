@@ -23,6 +23,10 @@ class ConfigLoader:
         'state_file': '/var/lib/nas-monitor/last_access.json',
         'notification_state_file': '/var/lib/nas-monitor/notification_state.json',
         'reboot_after_wipe': True,
+        # reboot_after_wipe が false のときの Samba の止め方。
+        #   "service": smbd を丸ごと止める（既定。Secret NAS 専用機向け）
+        #   "share":   smbd は止めず、この共有の接続だけ切る（他の共有も出しているホスト向け）
+        'samba_stop_mode': 'service',
         'notification': {
             'enabled': False,
             'method': 'email',
